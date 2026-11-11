@@ -2,7 +2,7 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { generateObject } from 'ai';
 import type { Planner } from '../contracts/types.js';
 import { systemPrompt, userPrompt } from './prompt.js';
-import { planSchema } from './schema.js';
+import { planSchema, modelPlanSchema, normalizeModelPlan } from './schema.js';
 import { validatePlan } from './validate.js';
 
 export function createPlanner(deps: {
@@ -40,10 +40,10 @@ export function openAiGenerate(opts: {
   return async (system, user) => {
     const result = await generateObject({
       model: openai(opts.model),
-      schema: planSchema,
+      schema: modelPlanSchema,
       system,
       prompt: user,
     });
-    return result.object;
+    return normalizeModelPlan(result.object);
   };
 }

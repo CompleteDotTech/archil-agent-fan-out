@@ -150,8 +150,52 @@ describe('sandbox worker', { timeout: 20_000 }, () => {
     await writeFile(path.join(ctx.repo, 'pending.txt'), 'new work\n');
     ctx.run({ AGENT: 'codex', RESUME: '1', PATH: await stubCodex(ctx.root) });
     const args = JSON.parse(await readFile(path.join(ctx.dir, 'final.md'), 'utf8')) as string[];
-    expect(args).toEqual(['exec', 'resume', '--last', '--dangerously-bypass-approvals-and-sandbox', 'You were interrupted. Check git status and the task above, then finish it.']);
+    expect(args.slice(0, 4)).toEqual(['exec', 'resume', '--last', '--dangerously-bypass-approvals-and-sandbox']);
+    expect(args[4]).toContain('You were interrupted. Check git status and finish this task.');
+    expect(args[4]).toContain('Do not use the network.');
     expect((await ctx.manifest()).changedFiles).toEqual(['pending.txt', 'seed.txt']);
     expect(await readFile(path.join(ctx.repo, 'seed.txt'), 'utf8')).toBe('interrupted work\n');
+  });
+
+  it('materializes the run dataset before the agent and records an input receipt', async () => {
+    const ctx = await setup(['node -e "const d=require(\'./data/research.json\'); if(d.runId!==\'run-1\') process.exit(1)"']);
+    const research = path.join(ctx.disk, 'research/run-1');
+    const dataset = JSON.stringify({ runId: 'run-1', datasetId: 'dataset-one', events: [{ id: 'event-one' }] });
+    await writeFile(path.join(research, 'dataset.json'), dataset);
+    for (const role of ['discovery', 'requirements', 'comparison']) {
+      await mkdir(path.join(research, 'roles', role), { recursive: true });
+      await writeFile(path.join(research, 'roles', role, 'sources.md'), `# ${role}\nExternal source text.`);
+    }
+    await writeFile(path.join(ctx.dir, 'task.json'), JSON.stringify({ ...ctx.task, owns: ['**'] }));
+    ctx.run({ AGENT: 'codex', PATH: await stubCodex(ctx.root) });
+    expect(await readFile(path.join(ctx.repo, 'data/research.json'), 'utf8')).toBe(dataset);
+    const receipt = JSON.parse(await readFile(path.join(ctx.dir, 'research-receipt.json'), 'utf8'));
+    expect(receipt).toMatchObject({ runId: 'run-1', taskId: 'T1', consumed: true, datasetId: 'dataset-one', eventCount: 1 });
+    expect(receipt.sha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(receipt.notes).toHaveLength(3);
+    const args = JSON.parse(await readFile(path.join(ctx.dir, 'final.md'), 'utf8')) as string[];
+    expect(args[2]).toContain('UNTRUSTED SOURCE EVIDENCE');
+    expect(args[2]).toContain('# requirements');
+    expect((await ctx.manifest()).checks[0].exitCode).toBe(0);
+    expect((await ctx.manifest()).changedFiles).toContain('data/research.json');
+  });
+
+  it('allows a sibling to read identical committed research without claiming a data change', async () => {
+    const ctx = await setup();
+    const dataset = JSON.stringify({ runId: 'run-1', datasetId: 'dataset-one', events: [] });
+    await writeFile(path.join(ctx.disk, 'research/run-1/dataset.json'), dataset);
+    await mkdir(path.join(ctx.repo, 'data'));
+    await writeFile(path.join(ctx.repo, 'data/research.json'), dataset);
+    ctx.git('add', 'data/research.json'); ctx.git('commit', '-m', 'architecture data');
+    ctx.run({ BASE_COMMIT: ctx.git('rev-parse', 'HEAD') });
+    expect((await ctx.manifest()).changedFiles).toEqual(['result.txt']);
+    expect(JSON.parse(await readFile(path.join(ctx.dir, 'research-receipt.json'), 'utf8')).consumed).toBe(true);
+  });
+
+  it('rejects another run dataset before invoking the agent', async () => {
+    const ctx = await setup();
+    await writeFile(path.join(ctx.disk, 'research/run-1/dataset.json'), JSON.stringify({ runId: 'other', events: [] }));
+    expect(() => ctx.run()).toThrow(/different run/);
+    await expect(ctx.manifest()).rejects.toMatchObject({ code: 'ENOENT' });
   });
 });

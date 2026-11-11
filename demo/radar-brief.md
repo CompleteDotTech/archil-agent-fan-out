@@ -1,0 +1,1 @@
+Build Hackathon Opportunity Radar for a developer deciding which hackathon to enter. Research five real opportunities, show cited requirements and prize/judging details, filter by attendance mode, eligibility and deadline, and save a run-isolated shortlist. Deliver a tested Hono app with traceable research-to-PR evidence.

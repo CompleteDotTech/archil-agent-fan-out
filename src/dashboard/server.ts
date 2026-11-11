@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
-import type { Store } from '../contracts/types.js';
+import type { SharedDisk, Store } from '../contracts/types.js';
 
 function eventCursor(value: string | undefined): number | undefined {
   if (!value || !/^\d+$/.test(value)) return undefined;
@@ -10,7 +10,7 @@ function eventCursor(value: string | undefined): number | undefined {
   return Number.isSafeInteger(cursor) ? cursor : undefined;
 }
 
-export function createDashboard(ports: { store: Store }, hooks: { stopTask(runId: string, taskId: string): Promise<void> }, opts?: { projectUrl?: string; publicDir?: string }): Hono {
+export function createDashboard(ports: { store: Store; disk?: SharedDisk }, hooks: { stopTask(runId: string, taskId: string): Promise<void> }, opts?: { projectUrl?: string; publicDir?: string }): Hono {
   const app = new Hono();
   const { store } = ports;
 
@@ -24,7 +24,37 @@ export function createDashboard(ports: { store: Store }, hooks: { stopTask(runId
       store.getIssueNumbers(runId),
       store.listEvents(runId),
     ]);
-    return c.json({ plan, statuses, attempts, issues, events: events.slice(-300), projectUrl: opts?.projectUrl ?? null });
+    return c.json({ plan, statuses, attempts, issues, events: events.slice(-300),
+      evidenceEvents: events.filter(item => item.event.type !== 'agent.log'), projectUrl: opts?.projectUrl ?? null });
+  });
+
+  // Read-only artifact views. Never expose arbitrary shared-disk paths or HTML
+  // fetched from external sources as executable same-origin content.
+  app.get('/research/:runId/*', async c => {
+    const runId = c.req.param('runId');
+    const prefix = `/research/${runId}/`;
+    let pathname: string;
+    try { pathname = decodeURIComponent(new URL(c.req.url).pathname); } catch { return c.notFound(); }
+    const relative = pathname.slice(prefix.length);
+    if (!ports.disk || !await store.getPlan(runId) || !pathname.startsWith(prefix)
+      || !/^[a-zA-Z0-9_./-]+\.(?:json|md)$/.test(relative)
+      || relative.split('/').some(part => part === '.' || part === '..')) return c.notFound();
+    const contents = await ports.disk.read(prefix + relative);
+    if (contents === undefined) return c.notFound();
+    c.header('Content-Type', relative.endsWith('.json') ? 'application/json; charset=utf-8' : 'text/plain; charset=utf-8');
+    c.header('X-Content-Type-Options', 'nosniff');
+    return c.body(contents);
+  });
+
+  app.get('/runs/:runId/:taskId/:attemptId/research-receipt.json', async c => {
+    const { runId, taskId, attemptId } = c.req.param();
+    if (!ports.disk || ![runId, taskId, attemptId].every(part => /^[a-zA-Z0-9_-]+$/.test(part))
+      || !await store.getPlan(runId)) return c.notFound();
+    const contents = await ports.disk.read(`/runs/${runId}/${taskId}/${attemptId}/research-receipt.json`);
+    if (contents === undefined) return c.notFound();
+    c.header('Content-Type', 'application/json; charset=utf-8');
+    c.header('X-Content-Type-Options', 'nosniff');
+    return c.body(contents);
   });
 
   app.get('/api/runs/:runId/stream', async c => {

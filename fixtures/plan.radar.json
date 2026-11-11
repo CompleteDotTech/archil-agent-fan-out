@@ -1,0 +1,118 @@
+{
+  "runId": "RUN_ID",
+  "brief": "Build Hackathon Opportunity Radar from live cited research.",
+  "targetRepo": "OWNER/radar-target",
+  "baseBranch": "main",
+  "tasks": [
+    {
+      "id": "EP1",
+      "title": "Hackathon Opportunity Radar",
+      "kind": "epic",
+      "dependsOn": [],
+      "owns": [],
+      "acceptance": [
+        "Five researched hackathons; evidence-aware filters; run-isolated saved shortlist; cited details; integrated tests pass."
+      ],
+      "verify": []
+    },
+    {
+      "id": "T1",
+      "title": "Architecture: Radar contracts and acceptance tests",
+      "kind": "task",
+      "parent": "EP1",
+      "dependsOn": [],
+      "owns": [
+        "**"
+      ],
+      "acceptance": [
+        "data/research.json is supplied by the orchestrator; preserve it byte-for-byte, use its exact schema and all provenance fields.",
+        "Define src/types.ts, src/app.ts exporting createApp({dataset?,publicDir?}), src/server.ts, docs/api.md. Hono application lazily calls createApi(dataset,filterEvents) and createUi(publicDir).",
+        "Define stubs src/api/index.ts exporting createApi(dataset,filter), src/filter/index.ts exporting filterEvents(events,{mode?,eligibility?,after?}), src/ui/index.ts exporting createUi(publicDir). Stubs may throw until siblings complete.",
+        "GET /api/dataset returns dataset unchanged. GET /api/events combines mode, eligibility and inclusive after YYYY-MM-DD filters and returns {runId,datasetId,events}. GET /api/events/:id returns {runId,datasetId,event,findings,sources}; GET /api/evidence returns provenance. Invalid filters 400, absent ID 404.",
+        "Write tests/architecture.test.ts verifying scaffold/data presence; tests/acceptance/api.test.ts, ui.test.ts, filter.test.ts and tests/acceptance/data.ts. API tests should test unchanged dataset/detail/evidence without requiring implemented filter. UI tests verify served files and exported createShortlist(storage,runId) from public/shortlist.js, reload persistence/cross-run isolation. Filter tests verify all combinations, inclusive date and uncertain exclusions.",
+        "Install no dependencies; package.json and tsconfig preinstalled. TypeScript ESM relative .js imports."
+      ],
+      "verify": [
+        "npm run typecheck",
+        "npx vitest run tests/architecture.test.ts"
+      ],
+      "research": [],
+      "prompt": "Architecture-first: read data/research.json and establish contracts, stub modules and meaningful acceptance tests. Never use network or change package.json. Parallel siblings must implement against these exact interfaces. Do not implement sibling modules yet. Include lazy routing so API tests do not initialize UI or filters unless needed. Document run-scoped localStorage key radar:<runId>:shortlist. Tests may be red until siblings merge but typecheck and architecture test must pass."
+    },
+    {
+      "id": "T2",
+      "title": "Radar API and cited dataset loader",
+      "kind": "task",
+      "parent": "EP1",
+      "dependsOn": [
+        "T1"
+      ],
+      "owns": [
+        "src/api/**",
+        "tests/api/**"
+      ],
+      "acceptance": [
+        "Implement createApi(dataset,filterEvents) per docs/api.md and architecture acceptance tests.",
+        "Return source dataset unchanged; retain all findings, roles, retrieval timestamps, dataset ID and run ID. Validate mode online/in-person/hybrid/unknown, eligibility open/student-only/unknown, and actual calendar after YYYY-MM-DD dates.",
+        "Details include only event-relevant findings and their sources; evidence exposes full provenance; unknown event 404."
+      ],
+      "verify": [
+        "npm run typecheck",
+        "npx vitest run tests/acceptance/api.test.ts"
+      ],
+      "research": [],
+      "prompt": "Read docs/api.md, src/types.ts and data/research.json. Only own src/api/** and tests/api/**. Inject filter function; do not edit sibling modules or architecture tests."
+    },
+    {
+      "id": "T3",
+      "title": "Radar cards, cited details and saved shortlist",
+      "kind": "task",
+      "parent": "EP1",
+      "dependsOn": [
+        "T1"
+      ],
+      "owns": [
+        "public/**",
+        "src/ui/**",
+        "tests/ui/**"
+      ],
+      "acceptance": [
+        "Implement createUi(publicDir), self-contained polished responsive HTML/CSS/JS, no CDN.",
+        "Show five dataset events (or explicit source shortfall), name/officialURL, verified location/dates/deadline/timezone/eligibility/prizes/judging/deliverables with claim-specific links and retrieval timestamps. Unknown/conflicting stay visible, do not invent facts.",
+        "Filters mode/eligibility/after and saved-only; readable event detail and separate evidence view. IDs mode,eligibility,after,saved,cards,detail,evidence.",
+        "Export createShortlist(storage,runId) from public/shortlist.js, methods toggle(id):boolean,has(id),values(). localStorage radar:<runId>:shortlist; tolerate corrupt/blocked storage, preserve reload and isolate runs.",
+        "Use API contract, escape data before DOM insertion, visibly label dataset run/research mode."
+      ],
+      "verify": [
+        "npm run typecheck",
+        "npx vitest run tests/acceptance/ui.test.ts"
+      ],
+      "research": [],
+      "prompt": "Read docs/api.md and supplied research. Implement useful ordinary-user product UI separate from engineering dashboard. API /api/dataset and /api/events. No external requests except same-origin APIs, source links clickable. Own only public/**,src/ui/**,tests/ui/**."
+    },
+    {
+      "id": "T4",
+      "title": "Evidence-aware location, eligibility and deadline filters",
+      "kind": "task",
+      "parent": "EP1",
+      "dependsOn": [
+        "T1"
+      ],
+      "owns": [
+        "src/filter/**",
+        "tests/filter/**"
+      ],
+      "acceptance": [
+        "Implement filterEvents(events,{mode?,eligibility?,after?}) per docs/api.md.",
+        "Combine all predicates. Category filters match only verified claims. unknown matches uncertain/unknown categories. after inclusive compares ISO deadline date, excludes missing/conflicting/invalid deadline; never substitute event dates.",
+        "Preserve event order and objects; no mutation."
+      ],
+      "verify": [
+        "npm run typecheck",
+        "npx vitest run tests/acceptance/filter.test.ts"
+      ],
+      "research": [],
+      "prompt": "Read src/types.ts/docs/api.md and actual deadline findings in data/research.json; implement pure evidence-aware filter. Own only src/filter/**,tests/filter/**. Add boundary tests. Do not edit shared acceptance tests."
+    }
+  ]
+}

@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { FixturePlanner } from '../../src/contracts/fakes.js';
 import { createPlanner } from '../../src/planner/planner.js';
-import { planSchema, taskSpecSchema } from '../../src/planner/schema.js';
+import { planSchema, taskSpecSchema, modelPlanSchema, normalizeModelPlan } from '../../src/planner/schema.js';
+import { z } from 'zod';
 import { validatePlan } from '../../src/planner/validate.js';
 
 const input = { runId: 'run-test', brief: 'Build a bookmark manager', targetRepo: 'local/bookmarks' };
@@ -61,6 +62,16 @@ describe('createPlanner', () => {
 });
 
 describe('plan schemas', () => {
+  it('requires every model-facing property and normalizes nullable fields', async () => {
+    const schema = z.toJSONSchema(modelPlanSchema) as any;
+    const task = schema.properties.tasks.items;
+    expect(task.required.sort()).toEqual(Object.keys(task.properties).sort());
+    const plan = await fixture();
+    const generated = modelPlanSchema.parse({ ...plan, tasks: plan.tasks.map(task => ({
+      ...task, parent: task.parent ?? null, research: task.research ?? null, prompt: task.prompt ?? null,
+    })) });
+    expect(normalizeModelPlan(generated)).toEqual(plan);
+  });
   it('accepts the contract fixture including omitted optional fields', async () => {
     const plan = await fixture();
     expect(planSchema.parse(plan)).toEqual(plan);

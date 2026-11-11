@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { MemoryStore } from '../../src/contracts/fakes.js';
+import { MemoryDisk, MemoryStore } from '../../src/contracts/fakes.js';
 import type { Plan, SwarmEvent } from '../../src/contracts/types.js';
 import { createDashboard } from '../../src/dashboard/server.js';
 
@@ -54,10 +54,42 @@ describe('dashboard server', () => {
     expect(snapshot).toEqual({
       plan, statuses: { T1: 'running' }, attempts: [attempt], issues: { T1: 42 },
       events: (await store.listEvents('demo')).slice(-300), projectUrl: 'https://github.com/orgs/example/projects/1',
+      evidenceEvents: [],
     });
     expect(snapshot.events).toHaveLength(300);
     expect(snapshot.events[0].event.data.line).toBe('5');
     expect(await store.listEvents('demo')).toHaveLength(305);
+  });
+
+  it('retains role and verification evidence even after 300 log messages', async () => {
+    const { store, app } = await setup();
+    const research: SwarmEvent = { runId: 'demo', at: '2026-11-10T12:00:00Z', type: 'research.role', data: { role: 'discovery', status: 'complete', count: 5 } };
+    await store.appendEvent(research);
+    for (let i = 0; i < 301; i++) await store.appendEvent(event('demo', String(i)));
+    const snapshot = await (await app.request('/api/runs/demo')).json();
+    expect(snapshot.events).toHaveLength(300);
+    expect(snapshot.evidenceEvents).toEqual([{ index: 1, event: research }]);
+  });
+
+  it('serves only run-scoped research and receipt artifacts as inert text or JSON', async () => {
+    const { store, stopTask } = await setup();
+    const disk = new MemoryDisk();
+    await disk.write('/research/demo/dataset.json', '{"runId":"demo"}');
+    await disk.write('/research/demo/roles/discovery/sources.md', '<script>untrusted</script>');
+    await disk.write('/research/missing/dataset.json', '{}');
+    await disk.write('/runs/demo/T1/T1-a1/research-receipt.json', '{"consumed":true}');
+    const app = createDashboard({ store, disk }, { stopTask });
+    const response = await app.request('/research/demo/dataset.json');
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ runId: 'demo' });
+    const notes = await app.request('/research/demo/roles/discovery/sources.md');
+    expect(notes.headers.get('content-type')).toContain('text/plain');
+    expect(notes.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(await notes.text()).toContain('<script>');
+    expect((await app.request('/research/missing/dataset.json')).status).toBe(404);
+    expect((await app.request('/research/demo/roles/%2E%2E%2F%2E%2E%2Fruns/data.json')).status).toBe(404);
+    expect((await app.request('/research/demo/index.html')).status).toBe(404);
+    expect(await (await app.request('/runs/demo/T1/T1-a1/research-receipt.json')).json()).toEqual({ consumed: true });
   });
 
   it('returns 404 for missing runs on every run endpoint', async () => {

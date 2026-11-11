@@ -21,3 +21,25 @@ export const planSchema = z.object({
   baseBranch: z.string(),
   tasks: z.array(taskSpecSchema),
 }) satisfies z.ZodType<Plan>;
+
+// Structured Outputs requires every property to be present. Nullable values
+// represent the optional fields used by the internal Plan contract.
+export const modelPlanSchema = planSchema.extend({
+  tasks: z.array(taskSpecSchema.extend({
+    parent: z.string().nullable(),
+    research: z.array(z.string()).nullable(),
+    prompt: z.string().nullable(),
+  })),
+});
+
+export function normalizeModelPlan(value: z.infer<typeof modelPlanSchema>): Plan {
+  return planSchema.parse({
+    ...value,
+    tasks: value.tasks.map(({ parent, research, prompt, ...task }) => ({
+      ...task,
+      ...(parent === null ? {} : { parent }),
+      ...(research === null ? {} : { research }),
+      ...(prompt === null ? {} : { prompt }),
+    })),
+  });
+}
