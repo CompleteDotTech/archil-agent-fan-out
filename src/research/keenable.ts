@@ -40,6 +40,7 @@ export function createKeenableResearch(opts: KeenableResearchOptions): Research 
         const endpoint = `${base}/v1/${path}${keyed ? '' : '/public'}${url === undefined ? '' : `?url=${encodeURIComponent(url)}`}`;
         const response = await fetchImpl(endpoint, {
           method: body === undefined ? 'GET' : 'POST',
+          signal: AbortSignal.timeout(30_000),
           headers,
           ...(body === undefined ? {} : { body: JSON.stringify(body) }),
         });

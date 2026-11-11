@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { FixturePlanner } from '../../src/contracts/fakes.js';
 import type { Plan } from '../../src/contracts/types.js';
 import { createGitHubClient, type GitHubClient } from '../../src/github/client.js';
-import { marker } from '../../src/github/markers.js';
+import { marker, runLabel } from '../../src/github/markers.js';
 import { publishPlan, type ProjectConfig } from '../../src/github/publish.js';
 
 const project: ProjectConfig = {
@@ -24,6 +24,16 @@ function dryClient() {
 const base = '/repos/{owner}/{repo}/issues';
 
 describe('publishPlan', () => {
+  it('uses bounded deterministic labels for long run IDs and preserves full markers', async () => {
+    const plan=await fixture(); plan.runId='radar-rehearsal-'+'x'.repeat(80);
+    const {client,calls}=dryClient(); await publishPlan(client,plan);
+    expect(runLabel(plan.runId).length).toBeLessThanOrEqual(50);
+    expect(runLabel(plan.runId)).not.toBe(runLabel(plan.runId+'other'));
+    const create=calls.find(call=>call.method==='POST'&&call.path===base)!;
+    expect(create.params.labels).toContain(runLabel(plan.runId));
+    expect(create.params.body).toContain(marker(plan.runId,'EP1'));
+    expect(calls[0].params.labels).toBe(runLabel(plan.runId));
+  });
   it('looks up run issues first, then creates epics and tasks before linking numeric ids', async () => {
     const plan = await fixture();
     const { client, calls } = dryClient();

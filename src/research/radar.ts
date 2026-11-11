@@ -41,7 +41,7 @@ export async function runRadarResearch(options: RadarResearchOptions): Promise<R
     const path = `${prefix}/roles/${result.role}`;
     await disk.write(`${path}/findings.json`, JSON.stringify(valid, null, 2));
     await disk.write(`${path}/sources.md`, renderNotes(valid));
-    await notify({role:result.role,status:result.status,count:result.findings.length,artifactPath:`${path}/findings.json`,errors:result.errors});
+    await notify({role:result.role,status:result.status,count:result.role === 'discovery' ? result.candidates.length : result.findings.length,artifactPath:`${path}/findings.json`,errors:result.errors});
     return valid;
   };
   const discoveryStarted = now();
@@ -72,7 +72,7 @@ export async function runRadarResearch(options: RadarResearchOptions): Promise<R
     if (!knownHost(candidate.url) || !discovered.has(canonical(candidate.url))) { discoveryErrors.push('Candidate URL was not present in discovery results'); continue; }
     const url = canonical(candidate.url);
     if (candidates.some(item => item.url === url)) continue;
-    const checked = radarCandidateSchema.safeParse({...candidate,id:`event-${hash(url).slice(0,12)}`,url,sourceUrls:(candidate.sourceUrls ?? []).filter(link => knownHost(link) && new URL(link).hostname === new URL(url).hostname).slice(0,3)});
+    const checked = radarCandidateSchema.safeParse({...candidate,id:`event-${hash(url).slice(0,12)}`,url,sourceUrls:[...new Set((candidate.sourceUrls ?? []).filter(link => knownHost(link) && new URL(link).hostname === new URL(url).hostname).map(canonical))].filter(link => link !== url).slice(0,3)});
     if (checked.success) candidates.push(checked.data);
     else discoveryErrors.push('Invalid discovery candidate');
   }
@@ -84,7 +84,7 @@ export async function runRadarResearch(options: RadarResearchOptions): Promise<R
     const fields = role === 'requirements' ? requiredFields : comparisonFields;
     const result: RadarRoleResult = {role,status:'complete',startedAt,completedAt:startedAt,queries:[],candidates,sources:[],findings:[],errors:[]};
     for (const candidate of candidates) {
-      for (const url of [...new Set([candidate.url,...candidate.sourceUrls])].slice(0,3)) {
+      for (const url of [...new Set([candidate.url,...candidate.sourceUrls].map(canonical))].slice(0,3)) {
         const query = `${candidate.name}: verify ${fields.join(', ')} against official page`;
         result.queries.push(query);
         let content: string;

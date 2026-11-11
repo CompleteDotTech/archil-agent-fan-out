@@ -6,7 +6,7 @@
 <title>Archil · Agent swarm</title>
 <style>
 :root{color-scheme:dark;--bg:#0b1220;--panel:#131f32;--line:#34455e;--text:#f3f7ff;--muted:#bdcbe0;--accent:#80d8ff;--green:#90edb2;--red:#ffb4ab}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:18px/1.5 system-ui,sans-serif}main{max-width:1600px;margin:auto;padding:36px}header{display:flex;justify-content:space-between;align-items:center;gap:24px;flex-wrap:wrap;margin-bottom:28px}h1{font-size:clamp(30px,4vw,48px);line-height:1.15;margin:6px 0;overflow-wrap:anywhere}h2{font-size:24px;margin:0}.eyebrow{color:var(--accent);font-weight:750;letter-spacing:.12em;font-size:14px;text-transform:uppercase}.muted{color:var(--muted)}a{color:var(--accent);text-underline-offset:4px}a:hover{color:white}button,.link-button{font:inherit;font-weight:650;border:1px solid var(--line);border-radius:8px;padding:10px 16px;background:#20324b;color:var(--text);cursor:pointer}button:hover,.link-button:hover{background:#314966}button:disabled{opacity:.6;cursor:wait}button:focus-visible,a:focus-visible,pre:focus-visible{outline:3px solid var(--accent);outline-offset:4px}.links{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.link-button{text-decoration:none}.connection{display:inline-flex;align-items:center;gap:8px;font-size:16px;color:var(--muted)}.connection:before{content:"";width:10px;height:10px;background:currentColor;border-radius:50%}.connection.live{color:var(--green)}.connection.error{color:var(--red)}.summary{display:flex;gap:24px;flex-wrap:wrap;margin:0 0 24px}.metric{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 22px;min-width:140px}.metric strong{font-size:30px;display:block}.metric span{color:var(--muted);font-size:16px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:24px}.panel-heading{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;padding:20px 24px;border-bottom:1px solid var(--line)}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;text-align:left;white-space:nowrap}th{font-size:14px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:#101a2a}td,th{padding:16px 20px;border-bottom:1px solid var(--line)}tbody tr:last-child td{border-bottom:0}tbody tr.selected{background:#1e3650}td.title{white-space:normal;min-width:240px;max-width:520px}.task-select{color:var(--accent);padding:4px 0;background:transparent;border:0;text-align:left}.task-select:hover{background:transparent;color:white;text-decoration:underline}.pill{display:inline-block;border-radius:99px;padding:4px 12px;font-size:15px;font-weight:750;border:1px solid currentColor;text-transform:capitalize}.backlog{color:#cbd5e1}.ready{color:#b8b6ff}.running{color:#80d8ff}.review{color:#ffdb8a}.done{color:var(--green)}.blocked{color:var(--red)}.stop{background:#48262e;border-color:#b26973;color:#ffe2e5}.stop:hover{background:#68313e}.attempt-note{font-size:13px;display:block;color:var(--muted)}#notice{padding:14px 18px;margin:0 0 20px;border-left:4px solid var(--accent);background:var(--panel);overflow-wrap:anywhere}#notice.error{border-color:var(--red);color:var(--red)}#logs{margin:0;padding:24px;min-height:260px;max-height:520px;overflow:auto;font:16px/1.65 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;background:#080f1b;color:#e0edff}#log-count{font-size:15px;color:var(--muted)}footer{color:var(--muted);font-size:15px}[hidden]{display:none!important}@media(max-width:700px){main{padding:20px 12px}.panel-heading{padding:16px}td,th{padding:12px}.summary{gap:10px}.metric{min-width:100px;flex:1;padding:10px 14px}#logs{padding:16px}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:18px/1.5 system-ui,sans-serif}main{max-width:1600px;margin:auto;padding:36px}header{display:flex;justify-content:space-between;align-items:center;gap:24px;flex-wrap:wrap;margin-bottom:28px}h1{font-size:clamp(30px,4vw,48px);line-height:1.15;margin:6px 0;overflow-wrap:anywhere}h2{font-size:24px;margin:0}.eyebrow{color:var(--accent);font-weight:750;letter-spacing:.12em;font-size:14px;text-transform:uppercase}.muted{color:var(--muted)}a{color:var(--accent);text-underline-offset:4px}a:hover{color:white}button,.link-button{font:inherit;font-weight:650;border:1px solid var(--line);border-radius:8px;padding:10px 16px;background:#20324b;color:var(--text);cursor:pointer}button:hover,.link-button:hover{background:#314966}button:disabled{opacity:.6;cursor:wait}button:focus-visible,a:focus-visible,pre:focus-visible{outline:3px solid var(--accent);outline-offset:4px}.links{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.link-button{text-decoration:none}.connection{display:inline-flex;align-items:center;gap:8px;font-size:16px;color:var(--muted)}.connection:before{content:"";width:10px;height:10px;background:currentColor;border-radius:50%}.connection.live{color:var(--green)}.connection.error{color:var(--red)}.summary{display:flex;gap:24px;flex-wrap:wrap;margin:0 0 24px}.metric{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 22px;min-width:140px}.metric strong{font-size:30px;display:block}.metric span{color:var(--muted);font-size:16px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:24px}.panel-heading{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;padding:20px 24px;border-bottom:1px solid var(--line)}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;text-align:left;white-space:nowrap}th{font-size:14px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:#101a2a}td,th{padding:16px 20px;border-bottom:1px solid var(--line)}tbody tr:last-child td{border-bottom:0}tbody tr.selected{background:#1e3650}td.title{white-space:normal;min-width:240px;max-width:520px}.task-select{color:var(--accent);padding:4px 0;background:transparent;border:0;text-align:left}.task-select:hover{background:transparent;color:white;text-decoration:underline}.pill{display:inline-block;border-radius:99px;padding:4px 12px;font-size:15px;font-weight:750;border:1px solid currentColor;text-transform:capitalize}.backlog{color:#cbd5e1}.ready{color:#b8b6ff}.running{color:#80d8ff}.review{color:#ffdb8a}.done{color:var(--green)}.blocked{color:var(--red)}.stop{background:#48262e;border-color:#b26973;color:#ffe2e5}.stop:hover{background:#68313e}.attempt-note{font-size:13px;display:block;color:var(--muted)}#notice{padding:14px 18px;margin:0 0 20px;border-left:4px solid var(--accent);background:var(--panel);overflow-wrap:anywhere}#notice.error{border-color:var(--red);color:var(--red)}#logs{margin:0;padding:24px;min-height:260px;max-height:520px;overflow:auto;font:16px/1.65 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;background:#080f1b;color:#e0edff}#log-count{font-size:15px;color:var(--muted)}footer{color:var(--muted);font-size:15px}#headline{font-size:clamp(28px,3.2vw,44px);line-height:1.2;font-weight:750;margin:0 0 20px}.proof{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:16px;margin:0 0 24px}.proof .metric{min-width:0}.proof strong{font-size:34px}.proof small{display:block;color:var(--muted);font-size:16px}@media(max-width:900px){.proof{grid-template-columns:repeat(2,minmax(0,1fr))}}[hidden]{display:none!important}@media(max-width:700px){main{padding:20px 12px}.panel-heading{padding:16px}td,th{padding:12px}.summary{gap:10px}.metric{min-width:100px;flex:1;padding:10px 14px}#logs{padding:16px}}
 </style>
 </head>
 <body>
@@ -18,7 +18,9 @@
 <p id="notice" role="status" hidden></p>
 <p id="run-mode" class="muted">Execution mode will appear when recorded by the orchestrator.</p>
 <section class="panel" aria-labelledby="research-heading"><div class="panel-heading"><div><h2 id="research-heading">Research agents · Keenable preflight</h2><span class="muted">Discovery first, then requirements and comparison. Coding begins after validated consolidation.</span></div><a id="dataset" target="_blank" rel="noopener noreferrer" hidden>Consolidated dataset ↗</a></div><div class="table-wrap"><table><thead><tr><th>Research role</th><th>State</th><th>Findings</th><th>Evidence</th></tr></thead><tbody id="research-roles"></tbody></table></div><p id="research-summary" style="padding:0 24px">No research role executions recorded.</p></section>
-<section class="summary" aria-label="Run progress"><div class="metric"><strong id="total">0</strong><span>Tasks</span></div><div class="metric"><strong id="running">0</strong><span>Running</span></div><div class="metric"><strong id="completed">0</strong><span>Done</span></div><div class="metric"><strong id="blocked">0</strong><span>Blocked</span></div></section>
+<p id="headline" role="status">Waiting for the plan…</p>
+<section class="proof" aria-label="Proof of work"><div class="metric"><span>Forked</span><strong id="p-forked">—</strong><small id="p-forked-d">sandboxes from one template</small></div><div class="metric"><span>Keenable sources</span><strong id="p-sources">—</strong><small>cited into workers</small></div><div class="metric"><span>Gates passed</span><strong id="p-gates">—</strong><small>verify + ownership</small></div><div class="metric"><span>PRs merged</span><strong id="p-prs">—</strong><small id="p-prs-d">into main</small></div><div class="metric"><span>Recoveries</span><strong id="p-rec">—</strong><small id="p-rec-d">stopped, resumed in place</small></div></section>
+<span id="total" hidden></span><span id="running" hidden></span><span id="completed" hidden></span><span id="blocked" hidden></span>
 <section class="panel" aria-labelledby="tasks-heading"><div class="panel-heading"><h2 id="tasks-heading">Task activity</h2><span class="muted">Select a task to inspect its log</span></div><div class="table-wrap"><table><thead><tr><th scope="col">ID</th><th scope="col">Title</th><th scope="col">Status</th><th scope="col">Attempt</th><th scope="col">Pull request</th><th scope="col">Sources</th><th scope="col">Control</th></tr></thead><tbody id="tasks"><tr><td colspan="7">Loading tasks…</td></tr></tbody></table></div></section>
 <section class="panel" aria-labelledby="log-heading"><div class="panel-heading"><div><h2 id="log-heading">Agent log <span id="selected-task"></span></h2><span id="log-count">Last 200 lines · select a task</span></div><label><input id="follow" type="checkbox" checked> Follow output</label></div><pre id="logs" tabindex="0" aria-label="Selected task agent log">Waiting for task activity.</pre></section>
 <section class="panel" aria-labelledby="trace-heading"><div class="panel-heading"><h2 id="trace-heading">Selected task · delivery evidence</h2></div><div id="trace" style="padding:24px">Select a task above to trace its research input, verification and PR.</div></section>
@@ -31,7 +33,7 @@
   const runId = new URLSearchParams(location.search).get('run') || 'demo';
   const base = '/api/runs/' + encodeURIComponent(runId);
   const statuses = new Set(['backlog', 'ready', 'running', 'review', 'done', 'blocked']);
-  const state = { roles: new Map(), gates: new Map(), dataset: null, datasetContent: null, datasetLoading: false, metadata: null, tasks: [], statuses: {}, attempts: new Map(), prs: new Map(), sources: new Map(), logs: new Map(), selected: null, pending: new Set(), seen: new Set(), stream: null, finished: false };
+  const state = { roles: new Map(), gates: new Map(), dataset: null, datasetContent: null, datasetLoading: false, metadata: null, tasks: [], statuses: {}, attempts: new Map(), prs: new Map(), sources: new Map(), logs: new Map(), selected: null, pending: new Set(), seen: new Set(), stream: null, finished: false, fork: null, stops: new Map(), recoveries: [], final: null, researchSeen: false };
   $('run-id').textContent = runId;
   document.title = 'Run ' + runId + ' · Archil';
 
@@ -186,7 +188,31 @@
     $('running').textContent = String(counts.running);
     $('completed').textContent = String(counts.done);
     $('blocked').textContent = String(counts.blocked);
-    renderResearch(); renderTrace(); void loadDataset();
+    renderResearch(); renderTrace(); void loadDataset(); renderProof(counts);
+  }
+  function renderProof(counts) {
+    const root = state.tasks.find(task => !task.dependsOn?.length);
+    const workers = state.tasks.filter(task => task.kind === 'task' && task.dependsOn?.length);
+    const rootStatus = root && state.statuses[root.id];
+    const merged = [...state.prs.values()].filter(pr => pr.merged).length;
+    let headline = 'Waiting for the plan…';
+    if (state.final) headline = 'Delivered: ' + merged + ' PRs merged, npm test ' + (state.final.pass ? 'passed ✓' : 'failed ✗') + ' on main.';
+    else if (rootStatus === 'running') headline = 'Architecture running in the template sandbox. ' + (workers.length || 'The') + ' workers fork from it next.';
+    else if (counts.running > 0) headline = counts.running + ' Codex agents building in parallel, in Archil sandboxes forked from one template.';
+    else if (state.tasks.length) headline = 'Plan published: ' + state.tasks.length + ' tasks. Research and architecture come first.';
+    $('headline').textContent = headline;
+    $('p-forked').textContent = state.fork ? String(state.fork.n) : '—';
+    $('p-forked-d').textContent = state.fork ? 'sandboxes in ' + (state.fork.ms / 1000).toFixed(1) + ' s' : 'sandboxes from one template';
+    const sources = [...state.sources.values()].reduce((a, b) => a + b, 0);
+    $('p-sources').textContent = state.researchSeen ? String(sources) : '—';
+    const gates = [...state.gates.values()];
+    $('p-gates').textContent = gates.length ? gates.filter(g => g.pass).length + '/' + gates.length : '—';
+    $('p-prs').textContent = state.prs.size ? String(merged) : '—';
+    $('p-prs-d').textContent = state.prs.size ? 'of ' + state.prs.size + ' opened, into main' : 'into main';
+    const rec = state.recoveries;
+    $('p-rec').textContent = rec.length ? String(rec.length) : '—';
+    const last = rec.length ? rec[rec.length - 1] : null;
+    $('p-rec-d').textContent = last !== null && last !== undefined ? 'last: Stop → resumed in ' + last.toFixed(0) + ' s' : 'stopped, resumed in place';
   }
   async function stopTask(taskId) {
     state.pending.add(taskId); renderTasks();
@@ -226,15 +252,25 @@
         const n = Number(String(attemptId || '').match(/-a(\d+)$/)?.[1]) || 1;
         const current = state.attempts.get(id);
         if (id && (!current || n >= current.n)) state.attempts.set(id, { attemptId, n, sandboxId: data.sandboxId, resume: data.resume, state: 'running' });
+        if (id && data.resume === true) { const at = state.stops.get(id); state.recoveries.push(at ? (Date.parse(event.at) - at) / 1000 : null); state.stops.delete(id); }
         break;
       }
+      case 'sandbox.forked':
+        state.fork = { n: (data.sandboxIds || []).length, ms: Number(data.ms) || 0 };
+        break;
+      case 'attempt.stop_requested':
+        if (id) state.stops.set(id, Date.parse(event.at));
+        break;
+      case 'integration.result':
+        if (!event.taskId) state.final = { pass: !!data.pass };
+        break;
       case 'attempt.interrupted': {
         const current = state.attempts.get(id);
         if (current && current.attemptId === (event.attemptId || data.attemptId)) current.state = 'interrupted';
         break;
       }
       case 'research.done':
-        if (id) state.sources.set(id, Number(data.count) || 0);
+        if (id) state.sources.set(id, Number(data.count) || 0); state.researchSeen = true;
         break;
       case 'pr.opened':
         if (id) state.prs.set(id, { number: data.number, url: data.url, merged: false });
@@ -294,7 +330,7 @@
     };
     stream.onmessage = receive;
     // Support either ordinary SSE messages or explicitly named event frames.
-    ['run.started','plan.published','research.role','research.dataset','research.done','task.status','attempt.started','attempt.interrupted','attempt.stop_requested','agent.log','gate.result','pr.opened','pr.merged','integration.result','run.done'].forEach(type => stream.addEventListener(type, receive));
+    ['run.started','plan.published','research.role','research.dataset','research.done','task.status','attempt.started','attempt.interrupted','attempt.stop_requested','sandbox.forked','agent.log','gate.result','pr.opened','pr.merged','integration.result','run.done'].forEach(type => stream.addEventListener(type, receive));
     stream.onerror = () => { connection('Connection interrupted · reconnecting…', 'error'); $('retry').hidden = false; };
   }
   async function start() {

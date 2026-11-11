@@ -57,6 +57,26 @@ describe('Radar research preflight', () => {
     expect(dataset.roles[2].errors).toContain('Rejected unsupported claim on https://event1.test');
   });
 
+  it('keeps an invalid extracted deadline unknown and records rejection without failing the role', async () => {
+    const dataset = await runRadarResearch({...options(new MemoryDisk()),extract:async ({fields}) => fields.includes('deadline') ? [
+      {field:'deadline',value:'2026-02-30T17:00:00Z',quote:'Submission deadline: 2026-12-03T17:00:00Z'},
+    ] : []});
+    expect(dataset.events[0].fields.deadline).toEqual({value:null,status:'unknown',findingIds:[]});
+    expect(dataset.roles[1].status).toBe('complete');
+    expect(dataset.roles[1].errors).toContain('Rejected invalid deadline value on https://event1.test');
+  });
+
+  it('deduplicates equivalent canonical page URLs before each role fetches', async () => {
+    const fetched: string[] = [];
+    const research: Research = {search:async()=>candidates,fetch:async url => {fetched.push(url);return page(0);}};
+    const dataset = await runRadarResearch({...options(new MemoryDisk()),research,candidates:[
+      {name:'Event 1',url:'https://event1.test/',sourceUrls:['https://event1.test','https://event1.test/','https://event1.test/rules/','https://event1.test/rules']},
+    ]});
+    expect(fetched).toEqual(['https://event1.test','https://event1.test','https://event1.test/rules','https://event1.test/rules']);
+    expect(dataset.roles[0].candidates[0].sourceUrls).toEqual(['https://event1.test/rules']);
+    expect(dataset.sources).toHaveLength(4);
+  });
+
   it('preserves competing official statements as a conflict instead of selecting a deadline', async () => {
     const research = fakeResearch({'https://event1.test/rules':page(0).replace('2026-12-03T17:00:00Z','2026-12-04T17:00:00Z')});
     const dataset = await runRadarResearch({...options(new MemoryDisk()),research,candidates:candidates.map((candidate,index) => ({name:candidate.title,url:candidate.url,sourceUrls:index ? []:['https://event1.test/rules']}))});

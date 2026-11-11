@@ -20,6 +20,20 @@
 
 </div>
 
+## Hackathon Opportunity Radar
+
+The primary demo now has three bounded Keenable research roles: discovery, requirements verification, and prizes/judging comparison. They run in the orchestrator before coding. Validated, cited findings are published to the shared Archil disk; real coding workers consume an identical dataset before implementing the app. The coding plan is an explicitly labeled Radar fixture, not a generated plan or the legacy planner-only research.
+
+See [the runbook](docs/RADAR-RUNBOOK.md) for isolated rehearsal and judges runs. A judges run is prepared now and starts only after an explicit presentation-time signal. Run records, raw retrieved sources, worker receipts, gates, PRs and reports remain under `.swarm/radar/<run-id>/`.
+
+For a **network-free synthetic engineering check** (fake coding agents, local infrastructure, five invented fixture events):
+
+```bash
+npm run swarm -- --radar --brief demo/radar-brief.md --repo demo/radar --local --fake-agent
+```
+
+This command does not demonstrate real research, real Archil workers or GitHub PRs. The older bookmark quick start below remains a legacy pipeline check. Use `demo/bookmark-brief.md` for that target.
+
 ---
 
 **Archil Agent Swarm** is a GitHub-driven coding swarm. Give it a **brief** and a **target repository**. It returns a **tested application**, merged one pull request at a time.
@@ -44,7 +58,7 @@ This needs no cloud account and no API keys. `--local` swaps Archil for a local 
 git clone https://github.com/CompleteDotTech/archil-agent-fan-out.git
 cd archil-agent-fan-out
 npm ci
-npm run swarm -- --brief demo/brief.md --repo demo/bookmarks --local --fake-agent
+npm run swarm -- --brief demo/bookmark-brief.md --repo demo/bookmarks --local --fake-agent
 ```
 
 ```text

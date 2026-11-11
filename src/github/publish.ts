@@ -1,6 +1,6 @@
 import type { Plan, TaskSpec, TaskStatus } from '../contracts/types.js';
 import type { GitHubClient } from './client.js';
-import { marker } from './markers.js';
+import { marker, runLabel } from './markers.js';
 
 export interface ProjectConfig {
   projectId: string;
@@ -71,7 +71,7 @@ export async function publishPlan(
 ): Promise<Record<string, number>> {
   const base = '/repos/{owner}/{repo}/issues';
   const existing = await listIssues(client, `GET ${base}`, {
-    labels: `swarm:${plan.runId}`, state: 'all',
+    labels: runLabel(plan.runId), state: 'all',
   });
   const simulated = dryIssues.get(client) ?? new Map<string, Issue>();
   if (client.dryRun) dryIssues.set(client, simulated);
@@ -88,7 +88,7 @@ export async function publishPlan(
     if (!issue) {
       issue = await client.request(`POST ${base}`, {
         title: task.title, body: bodyFor(plan, task),
-        labels: ['swarm', `swarm:${plan.runId}`, `type:${task.kind}`],
+        labels: ['swarm', runLabel(plan.runId), `type:${task.kind}`],
       }) as Issue;
       created.add(task.id);
       if (client.dryRun) simulated.set(tag, issue);

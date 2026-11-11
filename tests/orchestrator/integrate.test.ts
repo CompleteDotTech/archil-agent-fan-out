@@ -181,4 +181,56 @@ describe('delivery report', () => {
     const report = await disk.read(await integrator.writeReport());
     expect(report).toContain('Final test result: **Not run**');
   });
+
+  it('links Radar evidence and matching receipts, and requires a final suite and gated merge', async () => {
+    const { integrator, store, disk } = setup();
+    await store.savePlan({ runId, brief: 'Radar', targetRepo: 'local/demo', baseBranch: 'main', tasks: [task('T4')] });
+    await store.createAttempt({runId, taskId:'T4',attemptId:'T4-a1',n:1,resume:false,state:'passed',startedAt:'2026-11-11T00:00:00Z',deadlineAt:'2026-11-11T01:00:00Z'});
+    await disk.write(`/research/${runId}/dataset.json`, JSON.stringify({
+      runId,datasetId:'dataset-one',researchMode:'fixture',
+      events:[{id:'event-one',name:'Evidence event',fields:{deadline:{status:'verified',value:'2026-12-01',findingIds:['finding-one']}}},
+        {id:'event-two',name:'Uncertain event',fields:{deadline:{status:'conflicting',value:null,findingIds:[]}}}],
+      findings:[{id:'finding-one',eventId:'event-one',field:'deadline',sourceId:'source-one',value:'2026-12-01'}],
+      sources:[{id:'source-one',url:'https://example.test/rules',retrievedAt:'2026-11-11T00:00:00Z',contentPath:`/research/${runId}/roles/requirements/pages/source-one.md`}],
+      roles:[{role:'discovery',status:'complete',findings:[],errors:[]},{role:'requirements',status:'complete',findings:[{}],errors:['timezone unknown']},{role:'comparison',status:'failed',findings:[],errors:['no source']}],
+    }));
+    await disk.write(`/runs/${runId}/T4/T4-a1/research-receipt.json`,JSON.stringify({runId,taskId:'T4',datasetId:'dataset-one',consumed:true,sha256:'abc123',eventCount:2}));
+    const event = async (type:string,data:SwarmEvent['data'],taskId?:string,attemptId?:string) => {
+      await store.appendEvent({runId,type,data,taskId,attemptId,at:'2026-11-11T00:00:00Z'});
+    };
+    await event('run.started',{mode:'test',agent:'fake',infrastructure:'local',planMode:'radar-fixture'});
+    await event('integration.result',{pass:true,output:'intermediate typecheck'},'T4','T4-a1');
+    let report = await disk.read(await integrator.writeReport());
+    expect(report).toContain('Final test result: **Not run**');
+    expect(report).toContain('Verified PR: not recorded');
+    expect(report).toContain('coding agent: fake; infrastructure: local');
+    expect(report).toContain('finding finding-one');
+    expect(report).toContain('deadline 2026-12-01');
+    expect(report).toContain('deadline conflicting; no verified deadline chain claimed');
+    expect(report).toContain('SHA256 abc123, events 2');
+    expect(report).toContain('timezone unknown');
+    expect(report).toContain('comparison');
+    await event('gate.result',{pass:true},'T4','T4-a1');
+    await event('pr.opened',{number:42,url:'https://github.com/local/demo/pull/42'},'T4','T4-a1');
+    await event('pr.merged',{number:42},'T4','T4-a1');
+    await event('integration.result',{pass:true,final:true,output:'all 9 target tests passed'});
+    report = await disk.read(await integrator.writeReport());
+    expect(report).toContain('Final test result: **PASS**');
+    expect(report).toContain('Verified PR: [#42](https://github.com/local/demo/pull/42)');
+    expect(report).toContain('all 9 target tests passed');
+  });
+
+  it('does not accept a different run dataset or mismatched Radar receipt', async () => {
+    const { integrator, store, disk } = setup();
+    await disk.write(`/research/${runId}/dataset.json`,JSON.stringify({runId:'other',events:[],findings:[],sources:[],roles:[]}));
+    let report=await disk.read(await integrator.writeReport());
+    expect(report).toContain('invalid or belongs to another run');
+    await store.savePlan({runId,brief:'',targetRepo:'local/demo',baseBranch:'main',tasks:[task('T4')]});
+    await store.createAttempt({runId,taskId:'T4',attemptId:'T4-a1',n:1,resume:false,state:'passed',startedAt:'2026-11-11T00:00:00Z',deadlineAt:'2026-11-11T01:00:00Z'});
+    await disk.write(`/research/${runId}/dataset.json`,JSON.stringify({runId,datasetId:'right',researchMode:'fresh',events:[],findings:[],sources:[],roles:[]}));
+    await disk.write(`/runs/${runId}/T4/T4-a1/research-receipt.json`,JSON.stringify({runId,taskId:'T4',datasetId:'wrong',consumed:true,sha256:'wrong'}));
+    report=await disk.read(await integrator.writeReport());
+    expect(report).toContain('Matching research consumption receipt: not recorded');
+    expect(report).not.toContain('SHA256 wrong');
+  });
 });

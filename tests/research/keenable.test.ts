@@ -17,13 +17,13 @@ describe('Keenable research', () => {
     const expected = new FixtureResearch();
     expect(await research.search(query, { maxResults: 3, site: 'hono.dev' })).toEqual(await expected.search(query));
     expect(transport.mock.calls[0]).toEqual(['https://example.test/v1/search', {
-      method: 'POST', headers: { 'X-API-Key': 'test-key', 'Content-Type': 'application/json' },
+      signal: expect.any(AbortSignal), method: 'POST', headers: { 'X-API-Key': 'test-key', 'Content-Type': 'application/json' },
       body: JSON.stringify({ query, mode: 'realtime', max_results: 3, site: 'hono.dev' }),
     }]);
     const url = 'https://hono.dev/docs/api/routing?a=1&b=two words';
     expect(await research.fetch(url)).toBe(await expected.fetch(url));
     expect(transport.mock.calls[1]).toEqual([`https://example.test/v1/fetch?url=${encodeURIComponent(url)}`, {
-      method: 'GET', headers: { 'X-API-Key': 'test-key' },
+      signal: expect.any(AbortSignal), method: 'GET', headers: { 'X-API-Key': 'test-key' },
     }]);
   });
 

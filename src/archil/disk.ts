@@ -90,7 +90,7 @@ export function createArchilDisk(opts: ArchilDiskOptions): SharedDisk {
       const key = objectKey(prefix, true);
       const disk = await getDisk();
       // The SDK follows all continuation tokens when no limit is supplied.
-      const result = await disk.listObjects(key);
+      const result = await disk.listObjects(key, {recursive:true});
       return [...new Set(result.objects
         .filter(object => !object.key.endsWith('/'))
         .map(object => `/${object.key.replace(/^\/+/, '')}`))].sort();
