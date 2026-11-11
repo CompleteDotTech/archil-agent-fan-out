@@ -14,7 +14,7 @@ npm test
 Before opening a PR, run the full pipeline locally. It needs no credentials:
 
 ```bash
-npm run swarm -- --brief demo/brief.md --repo demo/bookmarks --local --fake-agent
+npm run swarm -- --brief demo/bookmark-brief.md --repo demo/bookmarks --local --fake-agent
 # … Final acceptance suite: PASS
 ```
 

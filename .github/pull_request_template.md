@@ -15,5 +15,5 @@
 
 - [ ] `npm run typecheck`
 - [ ] `npm test`
-- [ ] `npm run swarm -- --brief demo/brief.md --repo demo/bookmarks --local --fake-agent` ends with `Final acceptance suite: PASS`
+- [ ] `npm run swarm -- --brief demo/bookmark-brief.md --repo demo/bookmarks --local --fake-agent` ends with `Final acceptance suite: PASS`
 - [ ] No secrets in code, logs or screenshots

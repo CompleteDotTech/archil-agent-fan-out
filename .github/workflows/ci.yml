@@ -54,7 +54,7 @@ jobs:
           git config --global init.defaultBranch main
       - name: Run the bookmark-manager brief end to end
         run: |
-          npm run swarm -- --brief demo/brief.md --repo demo/bookmarks \
+          npm run swarm -- --brief demo/bookmark-brief.md --repo demo/bookmarks \
             --local --fake-agent --port 0 | tee swarm.log
           grep -q "Final acceptance suite: PASS" swarm.log
       - name: Publish delivery report to the job summary
