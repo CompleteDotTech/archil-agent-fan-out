@@ -1,0 +1,616 @@
+# swarm/tasks.yaml: how the Codex swarm builds archil-agent-swarm.
+#
+# Layer 0 (root, your Codex session on main): R0.* in order, then spawn one ws_orchestrator subagent per workstream.
+# Layer 1 (ws_orchestrator subagents A-E): fan tasks out with `node swarm/bin/swarm.mjs spawn <task>`,
+#          verify, merge into ws/<ID>, write the workstream glue, report to root.
+# Layer 2 (leaf workers): one headless `codex exec` per task in .wt/<task>, sandboxed, no network.
+# Layer 3 (root + human, on main): merge workstreams, compose the CLI, run fake -> real -> rehearsal -> live.
+#
+# Cross-workstream dependencies are not allowed in layers 1-2: everything builds against src/contracts.
+
+version: 1
+base_branch: main
+
+limits:
+  max_parallel_workstreams: 5
+  max_parallel_leaves_per_workstream: 2   # drop to 1 if the model API returns 429s
+  leaf_timeout_minutes: 25
+  retries_per_leaf: 1
+
+common_rules: |
+  Read AGENTS.md first, then src/contracts/types.ts. Build only against those ports; use
+  src/contracts/fakes.ts in tests. Edit only the OWNS paths. Never edit package.json,
+  package-lock.json, tsconfig.json or src/contracts/**. Do not run git commands that change
+  state. You have no network: read SDK type definitions in node_modules instead of docs.
+  Run every VERIFY command; all must pass before you finish.
+
+workstreams:
+  - id: A
+    name: Planning and Keenable research
+    owns: ["src/planner/**", "src/research/**", "tests/planner/**", "tests/research/**"]
+    verify: ["npm run typecheck", "npx vitest run tests/planner tests/research"]
+    glue: |
+      After A1-A4 merge, write src/planner/index.ts re-exporting createPlanner, validatePlan, topoOrder,
+      runResearch and src/research/index.ts re-exporting createKeenableResearch.
+  - id: B
+    name: GitHub publisher
+    owns: ["src/github/**", "tests/github/**"]
+    verify: ["npm run typecheck", "npx vitest run tests/github"]
+    glue: |
+      After B1-B3 merge, write src/github/index.ts exporting
+      createPublisher(opts: { client, issueOf: (runId, taskId) => Promise<number>, project?: ProjectConfig }): Publisher
+      that combines publishPlan (B2) with the flow functions (B3).
+  - id: C
+    name: Archil runtime (store, sandboxes, worker)
+    owns: ["src/archil/**", "src/worker/**", "scripts/**", "tests/archil/**", "tests/worker/**"]
+    verify: ["npm run typecheck", "npx vitest run tests/archil tests/worker"]
+    glue: |
+      Run C1 first and merge it as soon as it passes, then tell the root "C1 merged: human can run npm run smoke".
+      After all tasks merge, write src/archil/index.ts exporting createSqliteStore, archilDb, nodeSqliteDb,
+      createArchilSandboxRunner and createArchilDisk.
+  - id: D
+    name: Orchestrator core
+    owns: ["src/orchestrator/**", "tests/orchestrator/**"]
+    verify: ["npm run typecheck", "npx vitest run tests/orchestrator"]
+    glue: |
+      After D1-D4 merge, write src/orchestrator/index.ts exporting createScheduler, createGate, createIntegrator,
+      createRecovery, plus tests/orchestrator/flow.test.ts that drives fixtures/plan.bookmarks.json to all-done
+      with the fakes (one task interrupted once and resumed).
+  - id: E
+    name: Dashboard, demo target and docs
+    owns: ["src/dashboard/**", "tests/dashboard/**", "demo/target-seed/**", "demo/assemble.sh", "fixtures/agent/**", "README.md", "docs/DEMO.md", "docs/architecture.md"]
+    verify: ["npm run typecheck", "npx vitest run tests/dashboard", "bash demo/assemble.sh"]
+    glue: |
+      After E1-E4 merge, check that `npm run dashboard:demo` serves the page (start it, curl /, stop it).
+
+tasks:
+  # ---------------- Layer 0: root does these itself, in order, committing after each ----------------
+  - id: R0.1
+    layer: 0
+    ws: root
+    title: Scaffold and install every dependency
+    deps: []
+    owns: ["package.json", "package-lock.json", "tsconfig.json", "vitest.config.ts", ".gitignore", "**/.gitkeep"]
+    prompt: |
+      1. npm init -y; set "type": "module", "engines": { "node": ">=22.13" }.
+      2. Scripts: "typecheck": "tsc --noEmit", "test": "vitest run", "swarm": "tsx src/cli.ts",
+         "smoke": "tsx scripts/smoke.ts", "dashboard:demo": "tsx src/dashboard/dev.ts".
+      3. npm install disk @archildata/sqlite keenable @octokit/rest ai @ai-sdk/openai zod hono @hono/node-server yaml
+         npm install -D typescript tsx vitest @types/node
+         If a package name fails to resolve, report it to the human and keep going with the rest.
+      4. tsconfig.json: target ES2022, module NodeNext, moduleResolution NodeNext, strict, skipLibCheck,
+         noEmit, resolveJsonModule, include ["src", "tests", "scripts"].
+      5. vitest.config.ts: test.include ["tests/**/*.test.ts"], cacheDir ".cache/vite" (worktrees can't
+         write the shared node_modules).
+      6. Keep the kit's .gitignore (node_modules without a trailing slash, so the worktree symlink is ignored).
+      7. Create every directory named in AGENTS.md with a .gitkeep.
+    verify: ["npm run typecheck", "node swarm/bin/swarm.mjs list"]
+    est_min: 6
+
+  - id: R0.2
+    layer: 0
+    ws: root
+    title: Fakes for every port
+    deps: [R0.1]
+    owns: ["src/contracts/fakes.ts", "tests/contracts/**"]
+    prompt: |
+      Implement in src/contracts/fakes.ts, one exported class or factory per port in types.ts:
+      - MemoryStore (Store): maps in memory; listEvents returns { index, event } with a monotonically increasing index.
+      - MemoryDisk (SharedDisk): Map<path, string>; list(prefix) returns sorted paths under prefix.
+      - FixtureResearch (Research): search returns fixtures/keenable-search.json search.results mapped to Source;
+        fetch returns its fetch.content.
+      - FixturePlanner (Planner): returns fixtures/plan.bookmarks.json with runId, brief and targetRepo substituted.
+      - RecordingPublisher (Publisher): records every call in `calls`; issue numbers start at 1, PR numbers at 100;
+        mergePullRequest returns a fake sha.
+      - LocalSandboxRunner (SandboxRunner): each sandbox is a temp directory. prepareTemplate creates one and runs
+        `setup` there with bash; fork copies the directory; exec runs `bash -lc` with cwd = that directory and env;
+        stop marks it stopped and kills any running exec (the exec promise rejects); start clears the flag.
+      - PassGate (Gate): always passes.
+      Tests in tests/contracts/fakes.test.ts cover the basics, including exec rejecting after stop.
+    verify: ["npm run typecheck", "npx vitest run tests/contracts"]
+    est_min: 10
+
+  - id: R0.3
+    layer: 0
+    ws: root
+    title: Prove the worker launch path
+    deps: [R0.1]
+    owns: []
+    prompt: |
+      Run `node swarm/bin/swarm.mjs smoke`. It must print SMOKE OK. If it fails, stop and show the human the
+      error and .swarm/logs/_smoke.log. Typical fixes: start the root session with
+      --dangerously-bypass-approvals-and-sandbox; set SWARM_LEAF_SANDBOX=bypass if leaves hit EPERM.
+    verify: []
+    est_min: 2
+
+  # ---------------- Workstream A: planning and research ----------------
+  - id: A1
+    layer: 2
+    ws: A
+    title: Keenable research client
+    deps: []
+    owns: ["src/research/**", "tests/research/**"]
+    context: ["fixtures/keenable-search.json"]
+    prompt: |
+      Implement createKeenableResearch(opts: { apiKey?: string; appTitle: string; baseUrl?: string;
+      fetchImpl?: typeof fetch; log?: (msg: string) => void }): Research in src/research/keenable.ts.
+    notes: |
+      Verified on 2026-11-10 (keyless) and from docs.keenable.ai:
+      - search keyed:    POST {base}/v1/search         headers X-API-Key, Content-Type: application/json
+        search keyless:  POST {base}/v1/search/public  header X-Keenable-Title: <appTitle> (required, else 400)
+        body: { "query": string, "mode": "realtime" | "pro", "max_results": 1-50, "site"?: string }
+        response: { query, mode, results: [{ title, url, description, snippet, acquired_at, published_at? }] }
+      - fetch keyed:     GET {base}/v1/fetch?url=<encoded>         header X-API-Key
+        fetch keyless:   GET {base}/v1/fetch/public?url=<encoded>  header X-Keenable-Title
+        response: { url, content, description, truncated, total_chars }   (content is markdown)
+      - base defaults to https://api.keenable.ai. Use mode "realtime".
+      - 429: wait Retry-After seconds (cap 10), retry at most 2 times. 402 insufficient_credits: log once,
+        then fall back to the keyless endpoints. Other errors: search returns [], fetch returns "".
+      - Map results to Source { title, url, snippet }.
+      Tests stub fetchImpl with fixtures/keenable-search.json; assert headers, paths, keyless fallback, 429 retry.
+    verify: ["npm run typecheck", "npx vitest run tests/research"]
+    est_min: 12
+
+  - id: A2
+    layer: 2
+    ws: A
+    title: Plan validator
+    deps: []
+    owns: ["src/planner/validate.ts", "tests/planner/validate.test.ts"]
+    context: ["fixtures/plan.bookmarks.json"]
+    prompt: |
+      Implement validatePlan(plan: Plan, opts?: { maxTasks?: number }): { ok: boolean; errors: string[] } and
+      topoOrder(plan: Plan): string[] (task ids only, dependencies first) in src/planner/validate.ts.
+      Rules, each producing a clear error string:
+      - ids unique; every dependsOn and parent refers to an existing id; parents are epics; epics have no verify.
+      - no dependency cycles (name the cycle).
+      - at least one task with no dependencies; at most opts.maxTasks tasks (default 6, epics not counted).
+      - every task has >= 1 owns glob and >= 1 verify command.
+      - tasks that can run concurrently (neither reaches the other through dependsOn) must not have overlapping
+        owns. Treat two globs as overlapping when the literal prefix of one (text before the first * ? [ or {)
+        is a prefix of the other's literal prefix.
+      Table-driven tests; fixtures/plan.bookmarks.json must pass.
+    verify: ["npm run typecheck", "npx vitest run tests/planner/validate.test.ts"]
+    est_min: 12
+
+  - id: A3
+    layer: 2
+    ws: A
+    title: LLM planner with structured output
+    deps: [A2]
+    owns: ["src/planner/planner.ts", "src/planner/prompt.ts", "src/planner/schema.ts", "tests/planner/planner.test.ts"]
+    context: ["docs/PLAN.md", "fixtures/plan.bookmarks.json"]
+    prompt: |
+      - src/planner/schema.ts: zod schemas for TaskSpec and Plan matching src/contracts/types.ts.
+      - src/planner/prompt.ts: system + user prompt. Rules for the model: at most 6 tasks under one epic; the first
+        task is "architecture": scaffold, API contract in docs/api.md, shared types, acceptance tests for every
+        later task, install all dependencies; it may own "**". Later tasks run in parallel, own disjoint paths,
+        never touch package.json or the lockfile, and have verify commands that run offline (npx vitest run <file>).
+        Each task gets 1-2 research queries for Keenable. Include fixtures/plan.bookmarks.json as the one example.
+      - src/planner/planner.ts: createPlanner(deps: { generate: (system: string, user: string) => Promise<unknown>;
+        validate?: typeof validatePlan }): Planner. Parse with zod, validate, on failure retry once with the errors
+        appended, then throw an Error listing them.
+      - Also export openAiGenerate(opts: { model: string; apiKey: string }) using generateObject from "ai" with
+        createOpenAI from "@ai-sdk/openai" and the zod Plan schema (read their .d.ts files for exact signatures).
+        Not unit-tested.
+      Tests stub generate: valid fixture -> ok; broken then fixed -> ok after one retry; broken twice -> throws.
+    verify: ["npm run typecheck", "npx vitest run tests/planner/planner.test.ts"]
+    est_min: 15
+
+  - id: A4
+    layer: 2
+    ws: A
+    title: Research step that writes cited notes to the shared disk
+    deps: [A1]
+    owns: ["src/planner/research-step.ts", "tests/planner/research-step.test.ts"]
+    prompt: |
+      runResearch(input: { plan: Plan; research: Research; disk: SharedDisk; maxResults?: number }):
+      Promise<Record<string, Source[]>>. For every task with research queries: search (maxResults default 3),
+      fetch the top result (truncate to 6000 chars), write /research/<runId>/<taskId>/sources.json (Source[]) and
+      /research/<runId>/<taskId>/sources.md (numbered citations: title, URL, snippet; then an "Excerpt" section
+      from the fetched page). One failing query must not fail the step. Return taskId -> sources.
+      Tests with FixtureResearch and MemoryDisk.
+    verify: ["npm run typecheck", "npx vitest run tests/planner/research-step.test.ts"]
+    est_min: 10
+
+  # ---------------- Workstream B: GitHub ----------------
+  - id: B1
+    layer: 2
+    ws: B
+    title: Paced GitHub client with dry-run
+    deps: []
+    owns: ["src/github/client.ts", "src/github/markers.ts", "tests/github/client.test.ts"]
+    prompt: |
+      createGitHubClient(opts: { token?: string; owner: string; repo: string; dryRun: boolean;
+      minIntervalMs?: number; onCall?: (c: { method: string; path: string; params: unknown }) => void;
+      octokit?: { request: Function; graphql: Function } }) returning { owner, repo, dryRun,
+      request(route: string, params?: object): Promise<any>, graphql(query: string, vars?: object): Promise<any> }.
+      - One FIFO queue for every call; at least minIntervalMs (default 1000) between requests; never concurrent.
+      - 403 or 429 that look like secondary rate limits: wait Retry-After seconds if present, else 60 s; at most 3
+        retries; then throw.
+      - dryRun: never call GitHub. Call onCall and return synthetic responses: POST .../issues ->
+        { number: n, id: 1000 + n, node_id: "I_" + n, html_url }; POST .../pulls -> { number: 100 + n, html_url };
+        PUT .../merge -> { sha: "dry" + n }; anything else -> {}.
+      - Default octokit: new Octokit({ auth: token }) from @octokit/rest.
+      - src/github/markers.ts: marker(runId, taskId) -> "<!-- swarm:<runId>:<taskId> -->" and parseMarker(body).
+      Tests with vitest fake timers and a stub octokit: pacing, retry-after, dry-run responses.
+    verify: ["npm run typecheck", "npx vitest run tests/github/client.test.ts"]
+    est_min: 12
+
+  - id: B2
+    layer: 2
+    ws: B
+    title: Publish the plan as issues, sub-issues, dependencies and Project items
+    deps: [B1]
+    owns: ["src/github/publish.ts", "tests/github/publish.test.ts"]
+    prompt: |
+      publishPlan(client, plan, opts?: { project?: { projectId: string; statusFieldId: string;
+      statusOptionIds: Record<TaskStatus, string> } }): Promise<Record<string, number>>.
+      Idempotent: first GET /repos/{owner}/{repo}/issues?labels=swarm:<runId>&state=all and reuse issues whose
+      body carries marker(runId, taskId).
+      1. Create epics, then tasks: POST /repos/{owner}/{repo}/issues. Body: marker, acceptance as a checklist,
+         verify commands in a code block, owned paths, "Research notes: /research/<runId>/<taskId>/sources.md".
+         Labels: swarm, swarm:<runId>, type:epic or type:task. Keep { number, id, node_id } per task.
+      2. Sub-issues: POST /repos/{owner}/{repo}/issues/{epic_number}/sub_issues with { sub_issue_id: <child id> }.
+      3. Dependencies: POST /repos/{owner}/{repo}/issues/{number}/dependencies/blocked_by with
+         { issue_id: <blocking issue id> }.  Both endpoints take the numeric `id`, NOT the issue `number`.
+      4. If opts.project: GraphQL addProjectV2ItemById(input: { projectId, contentId: node_id }) then
+         updateProjectV2ItemFieldValue(input: { projectId, itemId, fieldId: statusFieldId,
+         value: { singleSelectOptionId } }) with "ready" for tasks without deps, else "backlog".
+      Tests with a dry-run client: call order, numeric ids used for links, re-run creates nothing new.
+    verify: ["npm run typecheck", "npx vitest run tests/github/publish.test.ts"]
+    est_min: 15
+
+  - id: B3
+    layer: 2
+    ws: B
+    title: Status updates, pull requests and merges
+    deps: [B1]
+    owns: ["src/github/flow.ts", "tests/github/flow.test.ts"]
+    prompt: |
+      Export from src/github/flow.ts, each taking (client, issueOf: (runId, taskId) => Promise<number>, project?):
+      - setStatus(runId, taskId, status): replace any status:* label with status:<status>; if project is set, update
+        the single-select field (cache project item ids by issue number).
+      - openPullRequest({ runId, taskId, branch, title, body }): if an open PR already has head=<owner>:<branch>,
+        return it; else POST /repos/{owner}/{repo}/pulls { head: branch, base: "main", title,
+        body: body + "\n\nCloses #<issue>\n" + marker }. Return { number, url }.
+      - mergePullRequest(n): PUT /repos/{owner}/{repo}/pulls/{n}/merge { merge_method: "squash" } -> { mergeCommit: sha }.
+      - comment(runId, taskId, body): POST /repos/{owner}/{repo}/issues/{issue}/comments.
+      Do not write src/github/index.ts (the workstream orchestrator composes it). Tests with a dry-run client.
+    verify: ["npm run typecheck", "npx vitest run tests/github/flow.test.ts"]
+    est_min: 12
+
+  # ---------------- Workstream C: Archil runtime ----------------
+  - id: C1
+    layer: 2
+    ws: C
+    title: Smoke test for sandbox egress, shared disk and SQLite (run this first)
+    deps: []
+    owns: ["scripts/smoke.ts"]
+    prompt: |
+      `npm run smoke` (tsx scripts/smoke.ts) proves the Archil setup. Read env ARCHIL_API_KEY, ARCHIL_REGION,
+      ARCHIL_DISK_ID, TARGET_REPO; never print their values. Steps, each printed as PASS/FAIL with a short reason:
+      1. Create a sandbox (baseImage node:24-bookworm) with the disk mounted at /mnt/archil, conditional mode.
+      2. In the sandbox, curl -s -o /dev/null -w '%{http_code}' --max-time 10 each of: https://api.openai.com/v1/models,
+         https://api.github.com, https://github.com, https://registry.npmjs.org/hono, and
+         POST https://api.keenable.ai/v1/search/public with header X-Keenable-Title: smoke and body {"query":"archil"}.
+         Any HTTP status means reachable; 000 means blocked.
+      3. git ls-remote https://github.com/$TARGET_REPO (public) or report "skipped".
+      4. Write /mnt/archil/smoke/<timestamp>.txt, run `sync` on it, read it back.
+      5. npm install -g @openai/codex && codex --version.
+      6. From this process: Archil SQLite createDatabase(disk, "smoke/smoke.sqlite"); create a table, write a row,
+         read it back.
+      7. Stop and delete the sandbox in a finally block. Print a summary table.
+    notes: |
+      API shapes from Archil's docs (they may lag the SDK; trust node_modules/disk and
+      node_modules/@archildata/sqlite type definitions):
+        import * as archil from "disk";
+        const sandbox = await archil.createSandbox({ name, baseImage, vcpuCount, memSizeMiB,
+          mounts: [{ disk: diskId, path: "/mnt/archil", conditional: true }], env });
+        const execution = await sandbox.run("cmd", { env }); const result = await execution.wait(); // result.stdout
+        await sandbox.stop(); await sandbox.start(); await sandbox.delete();
+        // A client style also exists: new Archil({ apiKey, region }).sandboxes.create(...)
+        import { createDatabase } from "@archildata/sqlite";
+        const disk = await archil.getDisk(diskId); const db = await createDatabase(disk, "smoke/smoke.sqlite");
+        await db.write`INSERT INTO t (v) VALUES (${v})`.run(); const rows = await db.read`SELECT * FROM t`.all();
+      Free-plan limits (if they apply tonight): 5 concurrent sandboxes, 30-minute sessions, allowlisted egress.
+    verify: ["npm run typecheck"]
+    est_min: 10
+
+  - id: C2
+    layer: 2
+    ws: C
+    title: Store on Archil SQLite
+    deps: []
+    owns: ["src/archil/store.ts", "src/archil/db.ts", "tests/archil/store.test.ts"]
+    prompt: |
+      - src/archil/db.ts: interface Db { run(sql: string, params?: unknown[]): Promise<void>;
+        all<T>(sql: string, params?: unknown[]): Promise<T[]>; batch(stmts: { sql: string; params?: unknown[] }[]):
+        Promise<void> } with two implementations:
+        archilDb(disk, path): over @archildata/sqlite. Its API is tagged templates (db.write`...`, db.read`...`,
+        db.transaction([...])); call the tag functions with a constructed TemplateStringsArray (an array of SQL
+        fragments with a `raw` property) so placeholders become parameters. batch uses db.transaction (Archil
+        documents batch transactions only, so there is no BEGIN/COMMIT).
+        nodeSqliteDb(filename = ":memory:"): over node:sqlite DatabaseSync, for tests.
+      - src/archil/store.ts: createSqliteStore(db: Db): Store with tables runs, tasks(run_id, task_id, status,
+        issue_number), attempts(json), manifests(json), events(idx INTEGER PRIMARY KEY AUTOINCREMENT, run_id, json).
+        Multi-statement writes use batch. Document in a comment: one writer process only.
+      Tests run the Store against nodeSqliteDb: round trips, currentAttempt picks the highest n, listEvents(after).
+    verify: ["npm run typecheck", "npx vitest run tests/archil/store.test.ts"]
+    est_min: 15
+
+  - id: C3
+    layer: 2
+    ws: C
+    title: Sandbox runner and shared-disk client
+    deps: []
+    owns: ["src/archil/sandbox.ts", "src/archil/disk.ts", "tests/archil/sandbox.test.ts"]
+    prompt: |
+      - src/archil/sandbox.ts: createArchilSandboxRunner(opts: { region: string; diskId: string; baseImage?: string;
+        vcpuCount?: number; memSizeMiB?: number; env: Record<string, string>; sdk?: ArchilSdkLike }): SandboxRunner.
+        Put every SDK call behind a small ArchilSdkLike interface so tests use a stub; the default wraps "disk".
+        prepareTemplate: create the sandbox with mounts [{ disk, path: "/mnt/archil", conditional: true }]; set
+        timeouts as long as the plan allows (catch and log a refusal); run
+        `git clone https://x-access-token:$GITHUB_PUSH_TOKEN@github.com/<repo>.git /repo` (never log the URL),
+        `npm install -g @openai/codex`, then each setup command in /repo; record `git -C /repo rev-parse HEAD`; stop.
+        fork: make sure the template is stopped, fork `count` times sequentially; if a fork lacks /mnt/archil,
+        stop it and start it with the mounts list. exec: run, stream output to onOutput, reject on timeout or when
+        the sandbox stops mid-command. stop/start/remove pass through; start ignores "already running".
+      - src/archil/disk.ts: createArchilDisk(opts): SharedDisk. Use the disk SDK's file API if its types expose one;
+        otherwise implement read/write/list through serverless exec on the disk (cat, a heredoc, find).
+      Unit tests with a stub SDK only: mounts conditional, fork stops the template first, timeout rejects.
+    verify: ["npm run typecheck", "npx vitest run tests/archil/sandbox.test.ts"]
+    est_min: 18
+
+  - id: C4
+    layer: 2
+    ws: C
+    title: Worker script that runs inside each sandbox
+    deps: []
+    owns: ["src/worker/**", "tests/worker/**"]
+    prompt: |
+      Write src/worker/run-task.sh (bash; needs only git, node, codex). It runs inside a sandbox.
+      Env: RUN_ID TASK_ID ATTEMPT_ID BASE_COMMIT RESUME(0|1) AGENT(codex|fake) PUSH(1|0) REPO_DIR(/repo)
+      DISK(/mnt/archil) TARGET_REPO GITHUB_PUSH_TOKEN CODEX_API_KEY.
+      1. dir=$DISK/runs/$RUN_ID/$TASK_ID/$ATTEMPT_ID; `archil invalidate-cache $DISK 2>/dev/null || true`;
+         read $dir/task.json (TaskSpec plus optional findings[]) with node -e.
+      2. cd $REPO_DIR; git checkout -B swarm/$RUN_ID/$TASK_ID/$ATTEMPT_ID (keeps the working tree on resume).
+      3. Prompt = task title + prompt + acceptance + OWNS + VERIFY + findings + "Research notes:
+         $DISK/research/$RUN_ID/$TASK_ID/sources.md" (if present) + "Never edit package.json or the lockfile.
+         Do not commit."
+      4. AGENT=codex, RESUME=0: codex exec --dangerously-bypass-approvals-and-sandbox "$PROMPT" < /dev/null
+         >"$dir/final.md" 2>>"$dir/agent.log"
+         AGENT=codex, RESUME=1: codex exec resume --last --dangerously-bypass-approvals-and-sandbox
+         "You were interrupted. Check git status and the task above, then finish it." (same redirects)
+         AGENT=fake: cp -R $DISK/swarm/fixtures/agent/$TASK_ID/. $REPO_DIR/ and write a short final.md.
+         While the agent runs, a background loop runs `sync "$dir/agent.log"` every 10 s.
+      5. Run each verify command in $REPO_DIR; write $dir/verify.log and the exit codes.
+      6. git add -A; git commit --allow-empty -m "$TASK_ID ($ATTEMPT_ID)"; if PUSH=1, push HEAD to
+         refs/heads/swarm/$RUN_ID/$TASK_ID/$ATTEMPT_ID on https://x-access-token:$GITHUB_PUSH_TOKEN@github.com/$TARGET_REPO.git
+         with tracing off; never echo the token.
+      7. Write $dir/manifest.json (Manifest in src/contracts/types.ts; changedFiles = git diff --name-only
+         $BASE_COMMIT..HEAD; summary = first 500 chars of final.md; status complete if the agent exited 0).
+      8. `archil sync $DISK 2>/dev/null || sync "$dir"/*`; exit 0.
+      tests/worker/run-task.test.ts: run the script with AGENT=fake PUSH=0 against a temp git repo and a temp DISK
+      dir holding a fixture; assert manifest.json fields, the branch name and verify results.
+    verify: ["npm run typecheck", "npx vitest run tests/worker"]
+    est_min: 18
+
+  # ---------------- Workstream D: orchestrator core ----------------
+  - id: D1
+    layer: 2
+    ws: D
+    title: Scheduler and task state machine
+    deps: []
+    owns: ["src/orchestrator/scheduler.ts", "src/orchestrator/state.ts", "tests/orchestrator/scheduler.test.ts"]
+    prompt: |
+      - src/orchestrator/state.ts (pure): readyTasks(plan, statuses) = kind "task", status backlog or ready, every
+        dependency done; attemptId(taskId, n) = `${taskId}-a${n}`; canTransition(from, to).
+      - src/orchestrator/scheduler.ts: createScheduler(ports: { store; publisher; sandboxes; gate; disk;
+        recovery?: RecoveryHooks; integrator?: IntegratorHooks; now?: () => Date; log?: (s: string) => void },
+        opts: { concurrency: number; attemptTimeoutMs: number; baseCommit: string; workerEnv: Record<string,string>;
+        sandboxPool: string[]; pollMs?: number }) with runUntilDone(runId): Promise<{ done: string[]; blocked: string[] }>.
+        Each loop: dispatch ready tasks onto free sandboxes from sandboxPool (one task per sandbox at a time):
+        write /runs/<run>/<task>/<attempt>/task.json, store.createAttempt, status running (store, publisher, event),
+        then exec `bash /mnt/archil/swarm/worker/run-task.sh` with workerEnv + RUN_ID TASK_ID ATTEMPT_ID BASE_COMMIT
+        RESUME. Stream output lines as agent.log events (throttle to 1 per 500 ms per task).
+        When exec resolves: read manifest.json from the disk; ignore it unless manifest.attemptId is the task's
+        current attempt. gate.check -> pass: status review, publisher.openPullRequest, event pr.opened,
+        integrator.enqueue; fail: one retry (new attempt with findings in task.json), then blocked.
+        When exec rejects or no manifest exists: recovery.onInterrupted(attempt) -> dispatch it, or blocked if undefined.
+        Finish when every task is done or blocked. Tasks become done when the integrator sets them done in the store.
+      Tests with MemoryStore, MemoryDisk, RecordingPublisher, PassGate and a stub SandboxRunner whose exec writes a
+      manifest: the fixture plan dispatches T1 first, then T2-T4 in parallel, respecting concurrency.
+    verify: ["npm run typecheck", "npx vitest run tests/orchestrator/scheduler.test.ts"]
+    est_min: 20
+
+  - id: D2
+    layer: 2
+    ws: D
+    title: Deterministic gate
+    deps: []
+    owns: ["src/orchestrator/gate.ts", "src/orchestrator/globs.ts", "tests/orchestrator/gate.test.ts"]
+    prompt: |
+      - src/orchestrator/globs.ts: globToRegExp supporting **, *, ? and matchesAny(path, globs).
+      - src/orchestrator/gate.ts: createGate(sandboxes: SandboxRunner, opts?: { timeoutMs?: number }): Gate.
+        check({ task, manifest, sandboxId }): fail when manifest.status != "complete"; list every changed file that
+        matches none of task.owns; re-run each verify command with sandboxes.exec(sandboxId, `cd /repo && <cmd>`)
+        and fail on non-zero exit (never trust manifest.checks). Findings name the command and include the last
+        40 lines of output.
+      Tests with a stub SandboxRunner: pass, outside-owned file, failing command.
+    verify: ["npm run typecheck", "npx vitest run tests/orchestrator/gate.test.ts"]
+    est_min: 10
+
+  - id: D3
+    layer: 2
+    ws: D
+    title: Sequential integrator and delivery report
+    deps: []
+    owns: ["src/orchestrator/integrate.ts", "tests/orchestrator/integrate.test.ts"]
+    prompt: |
+      createIntegrator(ports: { publisher; store; sandboxes; disk; log? }, opts: { runId: string;
+      integrationSandboxId: string; finalVerify: string[] }): IntegratorHooks & { idle(): Promise<void>;
+      writeReport(): Promise<string> }.
+      enqueue adds to a FIFO processed one at a time: publisher.mergePullRequest -> event pr.merged -> in the
+      integration sandbox `cd /repo && git fetch origin && git checkout -B main origin/main` then each finalVerify
+      command -> pass: status done (store + publisher) and event integration.result; fail: comment on the issue
+      with the output tail, status blocked.
+      writeReport writes /delivery/<runId>/report.md (per task: issue, PR, attempts, gate findings, research source
+      count; final test result; start and end times) and returns the path.
+      Tests with fakes.
+    verify: ["npm run typecheck", "npx vitest run tests/orchestrator/integrate.test.ts"]
+    est_min: 12
+
+  - id: D4
+    layer: 2
+    ws: D
+    title: Recovery, stop requests and attempt fencing
+    deps: [D1]
+    owns: ["src/orchestrator/recovery.ts", "tests/orchestrator/recovery.test.ts"]
+    prompt: |
+      createRecovery(ports: { store; sandboxes; disk; log? }, opts?: { maxResumes?: number }) returning
+      RecoveryHooks & { requestStop(runId, taskId): Promise<void>; resumeAfterRestart(runId): Promise<Dispatch[]>;
+      isCurrent(attempt: Attempt, manifest: Manifest): boolean }.
+      - onInterrupted(attempt): mark it interrupted (store + event attempt.interrupted); sandboxes.start(sandboxId)
+        (ignore "already running"); create attempt n+1 with resume=true in the same sandbox; copy task.json to the
+        new attempt dir; return the Dispatch. After maxResumes (default 2) return undefined.
+      - requestStop: stop the current attempt's sandbox and record attempt.stop_requested (the dashboard button).
+      - resumeAfterRestart: every attempt still "running" is treated as interrupted.
+      Tests with fakes, including a stop in the middle of an exec on LocalSandboxRunner.
+    verify: ["npm run typecheck", "npx vitest run tests/orchestrator/recovery.test.ts"]
+    est_min: 12
+
+  # ---------------- Workstream E: dashboard, demo target, docs ----------------
+  - id: E1
+    layer: 2
+    ws: E
+    title: Dashboard server
+    deps: []
+    owns: ["src/dashboard/server.ts", "src/dashboard/dev.ts", "tests/dashboard/**"]
+    prompt: |
+      createDashboard(ports: { store: Store }, hooks: { stopTask(runId: string, taskId: string): Promise<void> },
+      opts?: { projectUrl?: string; publicDir?: string }) returns a Hono app:
+      - GET /api/runs/:runId -> { plan, statuses, attempts, issues, events: last 300, projectUrl }
+      - GET /api/runs/:runId/stream -> SSE; poll store.listEvents(runId, after) every 1 s; one `data: <json>` per event
+      - POST /api/runs/:runId/tasks/:taskId/stop -> hooks.stopTask
+      - GET / -> src/dashboard/public/index.html
+      src/dashboard/dev.ts: serve on :3000 (@hono/node-server) with a MemoryStore seeded from
+      fixtures/plan.bookmarks.json (runId "demo") and a timer emitting plausible events, so E2 can be built and
+      demoed without Archil. Tests with app.request().
+    verify: ["npm run typecheck", "npx vitest run tests/dashboard"]
+    est_min: 12
+
+  - id: E2
+    layer: 2
+    ws: E
+    title: Dashboard page
+    deps: []
+    owns: ["src/dashboard/public/**"]
+    prompt: |
+      One self-contained src/dashboard/public/index.html (inline CSS and JS, no build, no CDN). Reads ?run=<id>
+      (default "demo"); loads /api/runs/:id; subscribes to /api/runs/:id/stream. Shows: header with run id and a
+      GitHub Project link; a task table (id, title, status pill, attempt, PR link, research source count, a Stop
+      button on running tasks that POSTs /stop); a live log pane for the selected task (last 200 agent.log lines);
+      a delivery-report link after run.done. Event types are listed in src/contracts/types.ts. Large type and
+      high contrast: judges read it from a table.
+    verify: ["test -f src/dashboard/public/index.html"]
+    est_min: 15
+
+  - id: E3
+    layer: 2
+    ws: E
+    title: Demo target seed and fake-agent outputs
+    deps: []
+    owns: ["demo/target-seed/**", "demo/assemble.sh", "fixtures/agent/**"]
+    context: ["fixtures/plan.bookmarks.json", "demo/brief.md"]
+    prompt: |
+      - demo/target-seed/: what the human pushes to the target repo. package.json (type module; scripts test
+        "vitest run", typecheck "tsc --noEmit", start "tsx src/server.ts"; deps hono @hono/node-server; devDeps
+        typescript tsx vitest @types/node), tsconfig.json, .gitignore (node_modules, .codex), README.md, and an
+        AGENTS.md for the product's worker agents (edit only owned paths, never edit package.json, run verify).
+      - fixtures/agent/<T1..T4>/: the files a correct worker produces for each task in fixtures/plan.bookmarks.json,
+        honoring each task's owns. T1 creates docs/api.md, src/types.ts, src/app.ts (Hono app wiring the routes from
+        src/api, the static UI from public, and search from src/search through stub modules), src/server.ts, stub
+        modules, and tests/acceptance/{api,ui,search}.test.ts. T2 replaces src/api/** and src/store/**, T3 public/**
+        and src/ui/**, T4 src/search/**.
+      - demo/assemble.sh: build demo/.assembled (gitignored) = seed + T1..T4 applied in order, symlink
+        ../../node_modules, run `npx vitest run` there and exit with its code (the product repo already has hono,
+        vitest and typescript installed, so no network is needed).
+    verify: ["bash demo/assemble.sh"]
+    est_min: 20
+
+  - id: E4
+    layer: 2
+    ws: E
+    title: README and table-demo script
+    deps: []
+    owns: ["README.md", "docs/DEMO.md", "docs/architecture.md"]
+    context: ["docs/PLAN.md"]
+    prompt: |
+      Facts come from docs/PLAN.md only. README.md: what it is, a mermaid architecture diagram, how to run
+      (env vars, npm run smoke, npm run swarm -- --brief demo/brief.md --repo <org>/<target> [--dry-run]
+      [--fake-agent] [--fixture-plan] [--local]), and how it uses Archil (template + forks, conditional shared
+      disk, SQLite, stop and resume), Keenable (cited research) and GitHub (issues, sub-issues, blocked-by,
+      Project, PRs). docs/architecture.md: components and data flow. docs/DEMO.md: a 60-second and a 3-minute
+      table-demo script, the "press Stop" moment, the fallback recording, and a checklist for 9:25 PM.
+    verify: ["test -s README.md", "test -s docs/DEMO.md"]
+    est_min: 10
+
+  # ---------------- Layer 3: root + human, on main ----------------
+  - id: I1
+    layer: 3
+    ws: root
+    title: Compose the CLI and run the whole pipeline on fakes
+    deps: [A, B, C, D, E]
+    owns: ["src/cli.ts", "src/compose.ts"]
+    prompt: |
+      npm run swarm -- --brief <file> --repo <owner/name> [--dry-run] [--fake-agent] [--fixture-plan] [--local] [--port 3000]
+      compose.ts builds ports from env and flags: --local uses the fakes (LocalSandboxRunner, MemoryStore,
+      MemoryDisk, RecordingPublisher); otherwise Archil (createSqliteStore(archilDb(disk, "swarm/state.sqlite")),
+      createArchilSandboxRunner, createArchilDisk). Publisher is dry-run unless GITHUB_TOKEN is set and --dry-run
+      is absent. Research is Keenable (keyed when KEENABLE_API_KEY is set).
+      Flow: runId -> plan (fixture, or planner + validatePlan with fixture fallback) -> runResearch -> savePlan ->
+      publishPlan -> upload src/worker/run-task.sh and fixtures/agent/** to /swarm/ on the disk -> prepareTemplate
+      (setup = run T1 through run-task.sh inside the template) -> mark T1 done after its gate and merge -> fork 3 ->
+      scheduler.runUntilDone with recovery and integrator -> writeReport -> print the dashboard URL.
+      The dashboard runs in-process; its stopTask hook is recovery.requestStop.
+    verify: ["npm run typecheck", "npm test", "npm run swarm -- --local --fake-agent --fixture-plan --brief demo/brief.md --repo local/demo"]
+    est_min: 25
+
+  - id: I2
+    layer: 3
+    ws: root
+    title: Real Archil and GitHub with the fake agent (human present)
+    deps: [I1]
+    owns: ["src/**"]
+    prompt: |
+      Human runs `npm run smoke` first and reports the egress table. If github.com is blocked from sandboxes,
+      switch run-task.sh to writing a git bundle to the attempt dir and have the orchestrator push it.
+      Then: npm run swarm -- --fake-agent --fixture-plan --dry-run ... ; fix mismatches; then drop --dry-run
+      to publish to GitHub. Commit fixes on main.
+    verify: []
+    est_min: 20
+
+  - id: I3
+    layer: 3
+    ws: root
+    title: Rehearsal with real Codex workers (9:00 PM) and backup recording
+    deps: [I2]
+    owns: []
+    prompt: |
+      npm run swarm -- --brief demo/brief.md --repo <org>/<target>. Keep this run as the finished exhibit
+      (Project board, PRs, report, sources). Screen-record it. Note the run id for the demo tabs.
+    verify: []
+    est_min: 25
+
+  - id: I4
+    layer: 3
+    ws: root
+    title: Live run for table demos (9:25 PM) and submission (before 10:00 PM)
+    deps: [I3]
+    owns: []
+    prompt: |
+      Start a fresh run so agents are working when judges arrive; press Stop on one worker during each demo.
+      Submit before 10:00 PM with the repo link, README and recording.
+    verify: []
+    est_min: 5

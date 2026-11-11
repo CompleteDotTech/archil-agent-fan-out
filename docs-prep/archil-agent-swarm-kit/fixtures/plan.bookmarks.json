@@ -1,0 +1,83 @@
+{
+  "runId": "RUN_ID",
+  "brief": "See demo/brief.md",
+  "targetRepo": "OWNER/swarm-demo-bookmarks",
+  "baseBranch": "main",
+  "tasks": [
+    {
+      "id": "EP1",
+      "title": "Bookmark manager MVP",
+      "kind": "epic",
+      "dependsOn": [],
+      "owns": [],
+      "acceptance": [
+        "Users can add, list, delete and search bookmarks through a JSON API and a single-page UI",
+        "npm test passes on main after all tasks merge"
+      ],
+      "verify": []
+    },
+    {
+      "id": "T1",
+      "title": "Architecture: scaffold, API contract, shared types and acceptance tests",
+      "kind": "task",
+      "parent": "EP1",
+      "dependsOn": [],
+      "owns": ["**"],
+      "acceptance": [
+        "docs/api.md defines GET/POST /api/bookmarks, DELETE /api/bookmarks/:id and GET /api/bookmarks?q=",
+        "src/types.ts exports Bookmark { id, url, title, tags, createdAt } and NewBookmark",
+        "src/app.ts builds the Hono app from stub modules in src/api, src/store, src/search and serves public/",
+        "tests/acceptance/{api,ui,search,e2e}.test.ts exist and typecheck; they may fail until later tasks land",
+        "All dependencies are installed; later tasks never edit package.json"
+      ],
+      "verify": ["npm run typecheck", "test -f docs/api.md", "test -f tests/acceptance/api.test.ts"],
+      "research": ["hono routing app.request testing", "vitest getting started"],
+      "prompt": "You are the architecture task. Create the scaffold and contracts every later task builds against. Stub modules must export the final function signatures and throw new Error('not implemented')."
+    },
+    {
+      "id": "T2",
+      "title": "Bookmark API and in-memory store",
+      "kind": "task",
+      "parent": "EP1",
+      "dependsOn": ["T1"],
+      "owns": ["src/api/**", "src/store/**", "tests/api/**"],
+      "acceptance": [
+        "POST /api/bookmarks validates url and title and returns 201 with the bookmark",
+        "GET /api/bookmarks lists newest first; DELETE /api/bookmarks/:id returns 204, or 404 if unknown",
+        "tests/acceptance/api.test.ts passes"
+      ],
+      "verify": ["npx vitest run tests/acceptance/api.test.ts"],
+      "research": ["hono validator json body"]
+    },
+    {
+      "id": "T3",
+      "title": "Single-page web UI",
+      "kind": "task",
+      "parent": "EP1",
+      "dependsOn": ["T1"],
+      "owns": ["public/**", "src/ui/**", "tests/ui/**"],
+      "acceptance": [
+        "public/index.html has a form (#add-form with url, title, tags) and a list (#bookmarks)",
+        "The page calls the API from docs/api.md with fetch; no build step and no external CDN",
+        "tests/acceptance/ui.test.ts passes"
+      ],
+      "verify": ["npx vitest run tests/acceptance/ui.test.ts"],
+      "research": ["hono serve static files node"]
+    },
+    {
+      "id": "T4",
+      "title": "Tag and text search",
+      "kind": "task",
+      "parent": "EP1",
+      "dependsOn": ["T1"],
+      "owns": ["src/search/**", "tests/search/**"],
+      "acceptance": [
+        "searchBookmarks(list, query) matches title and url case-insensitively and supports tag:<name> terms",
+        "Results keep newest-first order",
+        "tests/acceptance/search.test.ts passes"
+      ],
+      "verify": ["npx vitest run tests/acceptance/search.test.ts"],
+      "research": ["javascript case insensitive search tokens"]
+    }
+  ]
+}

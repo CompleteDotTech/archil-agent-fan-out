@@ -1,0 +1,10 @@
+# no trailing slash: also ignores the node_modules symlink inside each worktree
+node_modules
+.wt/
+.swarm/
+.cache/
+.env
+.env.*
+demo/.assembled/
+dist/
+.codex-home/

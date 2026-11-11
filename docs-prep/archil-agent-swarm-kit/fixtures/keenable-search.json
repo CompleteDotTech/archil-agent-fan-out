@@ -1,0 +1,35 @@
+{
+  "_note": "Recorded from Keenable keyless endpoints on 2026-11-10. search: POST /v1/search/public (keyed: POST /v1/search with X-API-Key). fetch: GET /v1/fetch/public?url=... (keyed: GET /v1/fetch?url=...). Both keyless calls need the X-Keenable-Title header.",
+  "search": {
+    "query": "hono framework routing documentation",
+    "mode": "pro",
+    "results": [
+      {
+        "title": "hono.dev/docs/api/routing",
+        "url": "https://hono.dev/docs/api/routing",
+        "description": "",
+        "snippet": "Routing of Hono is flexible and intuitive.\nLet's take a look.\n## Basic\n```ts twoslash\nimport { Hono } from 'hono'\nconst app = new Hono()\n// ---cut---\n// HTTP Methods\napp.get('/', (c) => c.text('GET /'))\napp.post('/', (c) => c.text('POST /'))\napp.put('/', (c) => c.text('PUT /'))\napp.delete('/', (c) => c.text('DELETE /'))\napp.query('/', (c) => c.text('QUERY /'))\n// Wildcard\napp.get('/wild/*/card', (…",
+        "acquired_at": "2026-11-05T00:25:41Z"
+      },
+      {
+        "title": "Routing - Hono",
+        "url": "https://hono.dev/api/routing",
+        "description": "",
+        "snippet": "Routing of Hono is flexible and intuitive. Let's take a look.\n## Basic ​\nts\n```\n// HTTP Methods app . get ( '/' , ( c ) => c . text ( 'GET /' )) app . post ( '/' , ( c ) => c . text ( 'POST /' )) app . put ( '/' , ( c ) => c . text ( 'PUT /' )) app . delete ( '/' , ( c ) => c . text ( 'DELETE /' )) // Wildcard app . get ( '/wild/*/card' , ( c ) => { return c . text ( 'GET /wild/*/card' ) }) // Any…",
+        "published_at": "2026-05-15T13:54:13Z",
+        "acquired_at": "2026-05-16T12:46:14Z"
+      },
+      {
+        "title": "Routing",
+        "url": "https://mintlify.com/honojs/hono/api/routing",
+        "description": "",
+        "snippet": "Routing\nHono provides a flexible and powerful routing system that supports various path patterns, parameters, and multiple router implementations.\n##\n​\nRoute Patterns\n###\n​\nBasic Routes\nDefine routes using simple string paths.\n```\napp.get('/', (c) => c.text('Home'))\napp.get('/about', (c) => c.text('About'))\napp.get('/contact', (c) => c.text('Contact'))\n```\n###\n​\nPath Parameters\nCapture dynamic seg…",
+        "acquired_at": "2026-09-11T04:51:54Z"
+      }
+    ]
+  },
+  "fetch": {
+    "url": "https://hono.dev/docs/api/routing",
+    "content": "# Routing\n\nRouting of Hono is flexible and intuitive.\nLet's take a look.\n\n## Basic\n\n```ts twoslash\nimport { Hono } from 'hono'\nconst app = new Hono()\n// ---cut---\n// HTTP Methods\napp.get('/', (c) => c.text('GET /'))\napp.post('/', (c) => c.text('POST /'))\napp.put('/', (c) => c.text('PUT /'))\napp.delete('/', (c) => c.text('DELETE /'))\napp.query('/', (c) => c.text('QUERY /'))\n\n// Wildcard\napp.get('/wild/*/card', (c) => {\n  return c.text('GET /wild/*/card')\n})\n\n// Any HTTP methods\napp.all('/hello', (c) => c.text('Any Method /hello'))\n\n// Custom HTTP method\napp.on('PURGE', '/cache', (c) => c.text('PURGE Method /cache'))\n\n// Multiple Method\napp.on(['PUT', 'DELETE'], '/post', (c) =>\n  c.text('PUT or DELETE /post')\n)\n\n// Multiple Paths\napp.on('GET', ['/hello', '/ja/hello', '/en/hello'], (c) =>\n  c.text('Hello')\n)\n```\n\n## Path Parameter\n\n```ts twoslash\nimport { Hono } from 'hono'\nconst app = new Hono()\n// ---cut---\napp.get('/user/:name', async (c) => {\n  const name = c.req.param('name')\n  //       ^?\n  // ...\n})\n```\n\nor all parameters at once:\n\n```ts twoslash\nimport { Hono } from 'hono'\nconst app = new Hono()\n// ---cut---\napp.get('/posts/:id/comment/:comment_id', async (c) => {\n  const { id, comment_id } = c.req.param()\n  //       ^?\n  // ...\n})\n```\n\n## Optional Parameter\n\n```ts twoslash\nimport { Hono } from 'hono'\nconst app = new Hono()\n// ---cut---\n// Will match `/api/animal` and `/api/animal/:type`\napp.get('/api/animal/:type?', (c) => c.text('Animal!'))\n```\n\n## Regexp\n\n```ts twosla…"
+  }
+}
