@@ -4,8 +4,10 @@ import type { Db } from './db.js';
 type JsonRow = { json: string };
 
 // One writer process only: the orchestrator owns all mutations, including the
-// read/modify/write in updateAttempt. Multi-statement writes use atomic batches.
+// read/modify/write in updateAttempt, serialized per store instance below.
+// Multi-statement writes use atomic batches.
 export function createSqliteStore(db: Db): Store {
+  let attemptUpdates: Promise<void> = Promise.resolve();
   const writeAttempt = (attempt: Attempt): Promise<void> => db.run(
     `INSERT INTO attempts (run_id, attempt_id, task_id, n, started_at, json)
      VALUES (?, ?, ?, ?, ?, ?)
@@ -84,13 +86,18 @@ export function createSqliteStore(db: Db): Store {
 
     createAttempt: writeAttempt,
 
-    async updateAttempt(runId, attemptId, patch) {
-      const [row] = await db.all<JsonRow>(
-        'SELECT json FROM attempts WHERE run_id = ? AND attempt_id = ?', [runId, attemptId],
-      );
-      if (!row) throw new Error(`Unknown attempt: ${attemptId}`);
-      const attempt = JSON.parse(row.json) as Attempt;
-      await writeAttempt({ ...attempt, ...patch, runId, attemptId });
+    updateAttempt(runId, attemptId, patch) {
+      const update = attemptUpdates.then(async () => {
+        const [row] = await db.all<JsonRow>(
+          'SELECT json FROM attempts WHERE run_id = ? AND attempt_id = ?', [runId, attemptId],
+        );
+        if (!row) throw new Error(`Unknown attempt: ${attemptId}`);
+        const attempt = JSON.parse(row.json) as Attempt;
+        await writeAttempt({ ...attempt, ...patch, runId, attemptId });
+      });
+      // Keep the caller's rejection while allowing subsequent updates to run.
+      attemptUpdates = update.catch(() => {});
+      return update;
     },
 
     async currentAttempt(runId, taskId) {
