@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stash — your bookmark library</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, sans-serif; color: #18352e; background: #f4f6f1; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    main { max-width: 1050px; margin: auto; padding: 48px 24px; }
+    header { border-bottom: 1px solid #cdd8cc; margin-bottom: 32px; padding-bottom: 28px; }
+    .eyebrow { text-transform: uppercase; letter-spacing: .16em; font-size: .75rem; font-weight: 750; color: #486457; }
+    h1 { font-size: clamp(2.5rem, 6vw, 4rem); letter-spacing: -.06em; margin: 8px 0; }
+    h2 { font-size: 1.3rem; margin-top: 0; }
+    p { line-height: 1.6; }
+    .subtitle, .hint { color: #52635b; }
+    .layout { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 32px; align-items: start; }
+    .panel { background: white; border: 1px solid #d5dfd1; border-radius: 16px; padding: 24px; }
+    label { display: block; font-size: .9rem; font-weight: 650; margin-bottom: 8px; }
+    input { font: inherit; width: 100%; padding: 12px; border: 1px solid #a5b5a7; border-radius: 8px; background: #fff; color: #18352e; }
+    #add-form input { margin-bottom: 20px; }
+    button { font: inherit; cursor: pointer; border-radius: 8px; padding: 11px 16px; border: 1px solid #225e43; background: #225e43; color: white; font-weight: 650; }
+    #add-form button { width: 100%; }
+    button:disabled { opacity: .6; cursor: wait; }
+    :focus-visible { outline: 3px solid #c08012; outline-offset: 3px; }
+    .hint { font-size: .8rem; margin: 10px 0 24px; }
+    #error { color: #8b271e; background: #ffebe7; border-radius: 8px; padding: 12px; margin: 0 0 24px; }
+    #error:empty { display: none; }
+    #status { color: #52635b; font-size: .9rem; min-height: 1.4em; }
+    #bookmarks { list-style: none; padding: 0; margin: 0; display: grid; gap: 14px; }
+    .bookmark { background: white; border: 1px solid #d5dfd1; border-radius: 12px; padding: 20px; overflow-wrap: anywhere; }
+    .bookmark a { color: #174f39; font-size: 1.15rem; font-weight: 700; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+    .url { color: #52635b; font-size: .85rem; margin: 8px 0 12px; }
+    .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+    .tag { background: #e9f0e3; color: #365437; padding: 4px 9px; border-radius: 20px; font-size: .75rem; }
+    .delete { background: transparent; border-color: #d5dfd1; color: #6e3025; font-size: .8rem; padding: 6px 10px; }
+    .empty { padding: 32px 16px; text-align: center; color: #52635b; border: 1px dashed #a5b5a7; border-radius: 12px; }
+    @media (max-width: 700px) { main { padding: 28px 16px; } .layout { grid-template-columns: 1fr; } }
+  </style>
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <main>
+    <header><div class="eyebrow">A little space for good finds</div><h1>Stash.</h1><p class="subtitle">Save what matters. Find it when you need it.</p></header>
+    <div id="error" role="alert" aria-live="assertive"></div>
+    <div class="layout">
+      <section class="panel" aria-labelledby="add-heading">
+        <h2 id="add-heading">Save a bookmark</h2>
+        <form id="add-form">
+          <label for="url">URL</label><input id="url" name="url" type="url" placeholder="https://example.com" required>
+          <label for="title">Title</label><input id="title" name="title" placeholder="Something worth keeping" required>
+          <label for="tags">Tags <span class="hint">(optional)</span></label><input id="tags" name="tags" placeholder="design, work, reading">
+          <button type="submit">Save bookmark</button>
+        </form>
+      </section>
+      <section aria-labelledby="library-heading">
+        <h2 id="library-heading">Your library</h2>
+        <label for="search">Find a bookmark</label><input id="search" type="search" placeholder="Search titles, URLs, or tag:work" aria-describedby="search-hint">
+        <p class="hint" id="search-hint">Search by words or use tag: followed by a tag name.</p>
+        <p id="status" role="status" aria-live="polite"></p>
+        <ul id="bookmarks" aria-label="Saved bookmarks"></ul>
+      </section>
+    </div>
+  </main>
+</body>
+</html>
