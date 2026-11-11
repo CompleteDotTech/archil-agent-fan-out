@@ -53,8 +53,10 @@ export function safeDiagnostic(error: unknown, env: NodeJS.ProcessEnv = process.
   };
 }
 
-export async function executeFollowup(root: string, runId: string, taskPath: string, options: { retry?: boolean } = {}): Promise<void> {
+export async function executeFollowup(root: string, runId: string, taskPath: string, options: { retry?: boolean; port?: number } = {}): Promise<void> {
   const record = await readRun(root, runId) as RecordWithFollowups;
+  const dashboardPort = options.port ?? record.port;
+  if (!Number.isInteger(dashboardPort) || dashboardPort < 1 || dashboardPort > 65535) throw new Error('Invalid followup dashboard port');
   if (record.mode !== 'judges' || record.status !== (options.retry ? 'failed' : 'completed')) throw new Error(options.retry
     ? 'Retry requires a judges run failed by its previous followup' : 'Followup requires a completed judges run');
   const taskText = await readFile(resolve(root, taskPath), 'utf8');
@@ -168,10 +170,10 @@ export async function executeFollowup(root: string, runId: string, taskPath: str
       return report === undefined ? context.notFound() : context.text(report);
     });
     await new Promise<void>((resolveListen, rejectListen) => {
-      server = serve({ fetch: app.fetch, port: record.port }, () => resolveListen());
+      server = serve({ fetch: app.fetch, port: dashboardPort }, () => resolveListen());
       server.once('error', rejectListen);
     });
-    console.log(`Followup ${task.id} — dashboard http://localhost:${record.port}/?run=${runId}`);
+    console.log(`Followup ${task.id} — dashboard http://localhost:${dashboardPort}/?run=${runId}`);
     await setPhase('publishing reopened plan');
     await append('run.reopened', { taskId: task.id, attemptId, retry: !!options.retry, reason: task.title, previousCompletedAt: followup.previousCompletedAt, datasetId: dataset.datasetId, researchMode: 'reuse-existing-run-dataset' });
     await store.savePlan(plan); // Existing statuses and issue numbers are preserved by the store.
@@ -304,8 +306,8 @@ export async function executeFollowup(root: string, runId: string, taskPath: str
 }
 
 async function main() {
-  const { values } = parseArgs({ options: { run: { type: 'string' }, task: { type: 'string' }, 'github-cli-auth': { type: 'boolean' }, retry: { type: 'boolean' }, help: { type: 'boolean' } } });
-  if (values.help) { console.log('Usage: node --import tsx scripts/radar-followup.ts --run ID --task TASK.json [--github-cli-auth] [--retry]\nRequires an already completed judges run. --retry permits one retry of the same failed TaskSpec; does not start a new run.'); return; }
+  const { values } = parseArgs({ options: { run: { type: 'string' }, task: { type: 'string' }, 'github-cli-auth': { type: 'boolean' }, retry: { type: 'boolean' }, port: { type: 'string' }, help: { type: 'boolean' } } });
+  if (values.help) { console.log('Usage: node --import tsx scripts/radar-followup.ts --run ID --task TASK.json [--github-cli-auth] [--retry] [--port 3107]\nRequires an already completed judges run. --retry permits one retry of the same failed TaskSpec; does not start a new run.'); return; }
   if (!values.run || !values.task) throw new Error('Pass --run and --task');
   try { process.loadEnvFile('.env'); } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
   if (values['github-cli-auth']) {
@@ -315,7 +317,7 @@ async function main() {
     process.env.GH_TOKEN = credential; process.env.GITHUB_TOKEN = credential; process.env.GITHUB_PUSH_TOKEN = credential;
     console.log('GitHub auth: existing CLI login (explicit override; no credential written)');
   }
-  await executeFollowup(process.cwd(), values.run, values.task, { retry: values.retry });
+  await executeFollowup(process.cwd(), values.run, values.task, { retry: values.retry, port: values.port === undefined ? undefined : Number(values.port) });
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   main().catch(error => { console.error(JSON.stringify({ result: 'Followup failed', ...safeDiagnostic(error) })); process.exitCode = 1; });

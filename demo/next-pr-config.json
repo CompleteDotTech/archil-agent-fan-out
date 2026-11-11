@@ -1,0 +1,6 @@
+{
+  "runId": "radar-judges-2026-11-11T05-25-17-039Z-61894933",
+  "taskPath": "demo/next-pr-task.json",
+  "appUrl": "http://localhost:3106/",
+  "workerPort": 3107
+}

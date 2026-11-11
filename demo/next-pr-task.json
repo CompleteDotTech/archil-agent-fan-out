@@ -1,0 +1,17 @@
+{
+  "id": "T6",
+  "title": "Make Radar dates and timestamps readable",
+  "kind": "task",
+  "parent": "EP1",
+  "dependsOn": ["T1", "T2", "T3", "T4", "T5"],
+  "owns": ["public/**", "tests/ui/**", "tests/acceptance/ui.test.ts"],
+  "acceptance": [
+    "Display ISO date/time strings in the user-facing Radar app as readable dates and times. Example: 2026-11-28T15:00:00-08:00 becomes Nov 28, 2026 at 3:00 PM (UTC−08:00). Preserve the timestamp's written wall-clock time and numeric offset; do not silently convert it to the browser's timezone. Use a named timezone only when the source explicitly provides one.",
+    "Format date-only values as readable dates without inventing a time or timezone. Do not run Date.parse over prose event-date ranges. Missing, invalid and conflicting dates remain clearly unknown/unverified rather than becoming Invalid Date.",
+    "Use the formatter for submission deadlines, source retrieval times and the research snapshot date in cards, details and evidence views. Keep exact original ISO values accessible in a title, time datetime attribute or expandable provenance details. Keep run IDs in provenance details rather than making the hero unreadable.",
+    "Do not change data/research.json, the API responses, source/finding IDs, historical/closed calculations, filters, saved shortlist or links. This is presentation formatting only.",
+    "Add meaningful tests for the exact example, date-only values, a positive timezone offset, UTC timestamps and invalid/missing values. Typecheck and the full target test suite pass. Preserve unrelated work and the existing design."
+  ],
+  "verify": ["npm run typecheck", "npm test"],
+  "prompt": "Implement only the queued display cleanup. The judge will press a local button to start this task; this is a real coding task, not a simulation. Raw evidence must remain immutable and exact timestamps must remain accessible. Keep the current layout, data flow, historical labels and citation mapping. Do not use the network or change package files. Do not commit or push; the worker harness handles that."
+}

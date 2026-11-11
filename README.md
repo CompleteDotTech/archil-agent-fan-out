@@ -68,7 +68,9 @@ Saved report: .swarm/runs/run-…/report.md
 Final acceptance suite: PASS
 ```
 
-To explore the dashboard without running anything, use `npm run dashboard:demo`. It runs a simulated run at <http://localhost:3000/?run=demo> where you can press **Stop** and watch the worker resume.
+Use `npm run dashboard:demo -- --github-cli-auth` for the click-only next-PR page at <http://localhost:3000/>. It stages `demo/next-pr-task.json`; loading the page starts nothing. Only **Create next PR** runs the real worker. The current queued change formats ISO timestamps for people while preserving raw evidence.
+
+For the separate legacy simulation, use `npm run dashboard:simulation`; it uses no external services and is explicitly simulated.
 
 ## 🧭 How it works
 

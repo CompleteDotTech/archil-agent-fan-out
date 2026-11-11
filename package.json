@@ -34,7 +34,8 @@
     "typecheck": "tsc --noEmit",
     "swarm": "tsx src/cli.ts",
     "smoke": "tsx scripts/smoke.ts",
-    "dashboard:demo": "tsx src/dashboard/dev.ts"
+    "dashboard:demo": "tsx scripts/radar-demo.ts",
+    "dashboard:simulation": "tsx src/dashboard/dev.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.114",
