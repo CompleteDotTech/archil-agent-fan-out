@@ -165,22 +165,27 @@ The planner can generate a plan live. If its output doesn't validate, the run fa
 | GitHub secondary rate limits | Dry-run by default |
 | A live demo run fails | Recorded rehearsal plus the finished run's tabs |
 
-## How the build is done: a Codex swarm in three layers
+## How the build is done: a recursive Codex swarm
+
+The kickoff prompt is `swarm/prompts/kickoff.md`. The model is `gpt-6.1-sol` at Ultrafast speed.
 
 ```
-Root orchestrator: your Codex session on main (swarm/prompts/root.md)
-  ├─ Layer 0: R0.1 scaffold and deps, R0.2 fakes, R0.3 worker-launch smoke test
-  ├─ Layer 1: ws_orchestrator subagents A, B, C, D, E (.codex/agents/ws_orchestrator.toml)
-  │    └─ Layer 2: leaf workers, one `codex exec` per task in .wt/<task>
-  │         (started by swarm/bin/swarm.mjs; sandboxed, no network, ≤2 per workstream at a time)
-  └─ Layer 3: merge ws/* into main, then I1 compose CLI, I2 real Archil, I3 rehearsal, I4 live run
+Root orchestrator: your Codex session on main
+  ├─ Phase 0: R0.1 scaffold and deps, R0.2 fakes (three native subagents), R0.3 worker-launch smoke test
+  ├─ Phase 1: five workstream orchestrator processes (A-E), started at once
+  │    ├─ split tasks into sub-tasks (stub, then implementation and tests in parallel; independent files in parallel)
+  │    ├─ child orchestrator processes for sub-trees, to any depth
+  │    └─ leaves: sandboxed `codex exec` processes, each in its own git worktree
+  │       (global caps 24 leaves and 16 orchestrators, adjusted live from rate-limit signals)
+  └─ Phase 2: merge ws/* into main, then I1 compose CLI, I2 real Archil, I3 rehearsal, I4 live run
 ```
 
 Why the build swarm is shaped this way:
 
-- **Subagent nesting:** Codex's docs allow one level of subagent nesting by default, so leaves are processes, not grandchild subagents.
-- **Shared checkout:** agents editing the same checkout conflict, so every agent gets its own git worktree.
-- **Ownership:** contracts and `package.json` are frozen in layer 0, so the 20 leaf tasks have disjoint owned paths and build against fakes.
+- **Subagent limits:** native Codex subagents are capped per session (depth and threads). Orchestrators therefore run as separate `codex exec` processes, each with its own budget.
+- **Shared checkout:** agents editing the same checkout conflict, so every agent works in its own git worktree, and every file has one owner at a time.
+- **Gates:** every merge passes an OWNS check and its verify commands. A sub-task must also stay inside its parent's OWNS.
+- **Frozen foundation:** contracts and `package.json` are frozen in phase 0, so all work builds against fakes.
 
 **Timeline (PT):**
 

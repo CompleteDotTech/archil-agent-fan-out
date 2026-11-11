@@ -1,10 +1,10 @@
 # AGENTS.md: rules for every Codex agent in this repo
 
-This repo is built by a three-layer Codex swarm:
+This repo is built by a recursive Codex swarm (see `swarm/prompts/kickoff.md`):
 
 - **Root orchestrator**: the human's Codex session on `main`.
-- **Workstream orchestrators** (A–E): Codex subagents, one per workstream, each working on branch `ws/<ID>` in `.wt/ws-<ID>`.
-- **Leaf workers**: headless `codex exec` processes, one per task, each working on branch `task/<ID>` in `.wt/<ID>`.
+- **Orchestrators**: one per workstream, on `ws/<ID>`. Further orchestrators run per task or sub-task, on `task/<ID>`, nested to any depth.
+- **Leaf workers**: headless `codex exec` processes, each in its own worktree, `.wt/<ID>` on branch `task/<ID>`. Sub-task ids look like `D1.sched`.
 
 Read `docs/PLAN.md` for what we are building. Read `swarm/tasks.yaml` for the task you were given.
 
