@@ -18,6 +18,9 @@ export interface ComposeOptions {
 }
 
 export async function compose(options: ComposeOptions): Promise<void> {
+  try { process.loadEnvFile('.env'); } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
   const load = (name: string): Promise<any> => import(name);
   const [planning, researchModule, orchestration, dashboard, { serve }] = await Promise.all([
     load('./planner/index.js'), load('./research/index.js'), load('./orchestrator/index.js'),
@@ -31,7 +34,7 @@ export async function compose(options: ComposeOptions): Promise<void> {
   let publisher: Publisher;
   let localRemote: string | undefined;
   let localMerge: string | undefined;
-  const workerEnv: Record<string,string> = { AGENT: options.fakeAgent ? 'fake' : 'codex', PUSH: '1', TARGET_REPO: options.targetRepo };
+  const workerEnv: Record<string,string> = { AGENT: options.fakeAgent ? 'fake' : 'codex', PUSH: options.local ? '0' : '1', TARGET_REPO: options.targetRepo };
   if (temporary) {
     const localDisk = new LocalDisk(join(temporary, 'disk'));
     await mkdir(localDisk.root, { recursive: true });
@@ -49,14 +52,15 @@ export async function compose(options: ComposeOptions): Promise<void> {
     const region = process.env.ARCHIL_REGION || 'aws-us-west-2';
     const diskId = process.env.ARCHIL_DISK_ID;
     if (!diskId || !process.env.ARCHIL_API_KEY) throw new Error('ARCHIL_DISK_ID and ARCHIL_API_KEY are required without --local');
-    disk = runtime.createArchilDisk({ diskId, region });
+    sdk.configure({ apiKey: process.env.ARCHIL_API_KEY, region });
+    disk = runtime.createArchilDisk({ diskId, region, apiKey: process.env.ARCHIL_API_KEY });
     const archilDisk = await (sdk as any).getDisk(diskId);
     store = runtime.createSqliteStore(await runtime.archilDb(archilDisk, 'swarm/state.sqlite'));
     for (const name of ['GITHUB_PUSH_TOKEN', 'CODEX_API_KEY'] as const) {
       const value = name === 'CODEX_API_KEY' ? process.env.OPENAI_API_KEY : process.env[name];
       if (value) workerEnv[name] = value;
     }
-    sandboxes = runtime.createArchilSandboxRunner({region, diskId, env: workerEnv});
+    sandboxes = runtime.createArchilSandboxRunner({region, diskId, env: workerEnv, sdk: new sdk.Archil({apiKey:process.env.ARCHIL_API_KEY,region})});
     const [owner, repo] = options.targetRepo.split('/');
     const client = github.createGitHubClient({owner, repo, token: process.env.GITHUB_TOKEN,
       dryRun: options.dryRun || !process.env.GITHUB_TOKEN});
@@ -77,7 +81,7 @@ export async function compose(options: ComposeOptions): Promise<void> {
     try {
       const { openAiGenerate } = await load('./planner/planner.js');
       if (!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY is missing');
-      plan = await planning.createPlanner({generate: openAiGenerate({model: 'gpt-5.1', apiKey: process.env.OPENAI_API_KEY})}).plan(planInput);
+      plan = await planning.createPlanner({generate: openAiGenerate({model: process.env.OPENAI_MODEL || 'gpt-5.1', apiKey: process.env.OPENAI_API_KEY})}).plan(planInput);
       const validation = planning.validatePlan(plan);
       if (!validation.ok) throw new Error(validation.errors.join('; '));
     } catch (error) {
@@ -113,9 +117,14 @@ export async function compose(options: ComposeOptions): Promise<void> {
     await runFile('git', ['config', 'user.name', 'Swarm Local'], {cwd:localMerge});
     await runFile('git', ['config', 'user.email', 'swarm@local.invalid'], {cwd:localMerge});
   }
-  const gate = orchestration.createGate(sandboxes);
+  const gate = orchestration.createGate(sandboxes, {timeoutMs:120000});
   const recovery = orchestration.createRecovery({store, sandboxes, disk});
   const app = dashboard.createDashboard({store}, {stopTask: (run: string, task: string) => recovery.requestStop(run,task)});
+  app.get('/delivery/:runId/report.md', async (context: any) => {
+    if (context.req.param('runId') !== runId) return context.notFound();
+    const report = await disk.read(`/delivery/${runId}/report.md`);
+    return report === undefined ? context.notFound() : context.text(report);
+  });
   const server = serve({fetch:app.fetch, port:options.port});
   const address = server.address();
   const port = typeof address === 'object' && address ? address.port : options.port;
@@ -205,10 +214,15 @@ class LocalDisk extends MemoryDisk {
 /** Keep the production commands intact while translating their two absolute mount paths. */
 class LocalRunner extends LocalSandboxRunner {
   constructor(readonly disk: LocalDisk) { super(); }
-  override exec(id: string, cmd: string, opts?: Parameters<SandboxRunner['exec']>[2]) {
+  override async exec(id: string, cmd: string, opts?: Parameters<SandboxRunner['exec']>[2]) {
     const repo = this.directory(id);
     const translated = cmd.replaceAll('/mnt/archil', this.disk.root).replaceAll('/repo', repo);
-    return super.exec(id, translated, { ...opts, env: { ...process.env, ...opts?.env, REPO_DIR: repo, DISK: this.disk.root } as Record<string,string> });
+    const result = await super.exec(id, translated, { ...opts, env: { ...process.env, ...opts?.env, REPO_DIR: repo, DISK: this.disk.root } as Record<string,string> });
+    if (result.exitCode === 0 && cmd.includes('/swarm/worker/run-task.sh')) {
+      const pushed = await super.exec(id, 'git push origin HEAD', {timeoutMs:30000});
+      if (pushed.exitCode !== 0) throw new Error(`Local branch push failed: ${pushed.stderr}`);
+    }
+    return result;
   }
 }
 

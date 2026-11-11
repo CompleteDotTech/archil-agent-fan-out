@@ -178,7 +178,7 @@ tasks:
     ws: A
     title: LLM planner with structured output
     deps: [A2]
-    owns: ["src/planner/planner.ts", "src/planner/prompt.ts", "src/planner/schema.ts", "tests/planner/planner.test.ts"]
+    owns: ["src/planner/planner.ts", "src/planner/prompt.ts", "src/planner/schema.ts", "tests/planner/planner.test.ts", "src/planner/repair.ts", "tests/planner/repair.test.ts"]
     context: ["docs/PLAN.md", "fixtures/plan.bookmarks.json"]
     prompt: |
       - src/planner/schema.ts: zod schemas for TaskSpec and Plan matching src/contracts/types.ts.
@@ -219,7 +219,7 @@ tasks:
     ws: B
     title: Paced GitHub client with dry-run
     deps: []
-    owns: ["src/github/client.ts", "src/github/markers.ts", "tests/github/client.test.ts"]
+    owns: ["src/github/client.ts", "src/github/markers.ts", "tests/github/client.test.ts", "src/github/bootstrap.ts", "src/github/render.ts", "tests/github/render.test.ts"]
     prompt: |
       createGitHubClient(opts: { token?: string; owner: string; repo: string; dryRun: boolean;
       minIntervalMs?: number; onCall?: (c: { method: string; path: string; params: unknown }) => void;
@@ -286,7 +286,7 @@ tasks:
     ws: C
     title: Smoke test for sandbox egress, shared disk and SQLite (run this first)
     deps: []
-    owns: ["scripts/smoke.ts"]
+    owns: ["scripts/smoke.ts", "scripts/rehearse.ts"]
     prompt: |
       `npm run smoke` (tsx scripts/smoke.ts) proves the Archil setup. Read env ARCHIL_API_KEY, ARCHIL_REGION,
       ARCHIL_DISK_ID, TARGET_REPO; never print their values. Steps, each printed as PASS/FAIL with a short reason:
@@ -367,7 +367,7 @@ tasks:
     ws: C
     title: Worker script that runs inside each sandbox
     deps: []
-    owns: ["src/worker/**", "tests/worker/**"]
+    owns: ["src/worker/**", "tests/worker/**", "src/archil/bundle.ts", "src/archil/image.ts", "tests/archil/bundle.test.ts"]
     prompt: |
       Write src/worker/run-task.sh (bash; needs only git, node, codex). It runs inside a sandbox.
       Env: RUN_ID TASK_ID ATTEMPT_ID BASE_COMMIT RESUME(0|1) AGENT(codex|fake) PUSH(1|0) REPO_DIR(/repo)
@@ -402,7 +402,7 @@ tasks:
     ws: D
     title: Scheduler and task state machine
     deps: []
-    owns: ["src/orchestrator/scheduler.ts", "src/orchestrator/state.ts", "tests/orchestrator/scheduler.test.ts"]
+    owns: ["src/orchestrator/scheduler.ts", "src/orchestrator/state.ts", "tests/orchestrator/scheduler.test.ts", "src/orchestrator/race.ts", "tests/orchestrator/race.test.ts"]
     prompt: |
       - src/orchestrator/state.ts (pure): readyTasks(plan, statuses) = kind "task", status backlog or ready, every
         dependency done; attemptId(taskId, n) = `${taskId}-a${n}`; canTransition(from, to).
@@ -446,7 +446,7 @@ tasks:
     ws: D
     title: Sequential integrator and delivery report
     deps: []
-    owns: ["src/orchestrator/integrate.ts", "tests/orchestrator/integrate.test.ts"]
+    owns: ["src/orchestrator/integrate.ts", "tests/orchestrator/integrate.test.ts", "src/orchestrator/reviewer.ts", "src/orchestrator/metrics.ts", "tests/orchestrator/reviewer.test.ts", "tests/orchestrator/metrics.test.ts"]
     prompt: |
       createIntegrator(ports: { publisher; store; sandboxes; disk; log? }, opts: { runId: string;
       integrationSandboxId: string; finalVerify: string[] }): IntegratorHooks & { idle(): Promise<void>;
@@ -544,7 +544,7 @@ tasks:
     ws: E
     title: README and table-demo script
     deps: []
-    owns: ["README.md", "docs/DEMO.md", "docs/architecture.md"]
+    owns: ["README.md", "docs/DEMO.md", "docs/architecture.md", "docs/RECORDING.md"]
     context: ["docs/PLAN.md"]
     prompt: |
       Facts come from docs/PLAN.md only. README.md: what it is, a mermaid architecture diagram, how to run
