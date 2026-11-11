@@ -225,3 +225,46 @@ Built for the **Archil hackathon** (November 2026) on [Archil](https://archil.co
 ## 📄 License
 
 [MIT](LICENSE) © 2026 Timothy Wayne Gregg
+
+## Hackathon Opportunity Radar demo
+
+The next demo pairs a useful hackathon discovery app with visible research agents: event discovery, requirements verification, and prizes/judging comparison. The intended evidence trail is **source → research finding → task → implementation → verified PR → working app**. This is an implementation brief; the existing bookmark demo remains the fallback.
+
+See [the detailed implementation prompt and repeat-run requirements](docs/DEMO.md). Plan for at least **two separate executions**: a full rehearsal and a fresh judges' run. Preserve and label the rehearsal app/recording while the judges' run progresses.
+
+### Copy-and-paste kickoff prompt
+
+```text
+Implement the Hackathon Opportunity Radar demo described in docs/DEMO.md under
+“Hackathon Opportunity Radar: implementation prompt.” Read AGENTS.md,
+docs/PLAN.md, swarm/tasks.yaml and the existing implementation first.
+
+Build a useful app from a brief using visible Keenable research agents and
+Archil-backed coding workers. The app must show five real, researched hackathons,
+filters for location, eligibility and deadline, prize/judging details, a saved
+shortlist, and clickable citations. Make the evidence trail demonstrable:
+source → research finding → task → implementation → verified PR → working app.
+
+Implement three bounded research roles: event discovery, requirements verification,
+and prizes/judging comparison. Run research through an orchestrator-owned service
+using Keenable; preserve the repo's no-network rule for leaf workers. Store cited,
+structured findings on the shared Archil disk for coding workers to consume.
+Clearly distinguish implemented research agents from any existing planner-only
+research. Inspect current contracts and scheduling before designing the handoff;
+do not assume arbitrary research dependencies already work.
+
+Make this demo repeatable. Complete at least two separate end-to-end executions:
+(1) a full rehearsal/test run and (2) a fresh judges' run when presentation time is
+explicitly signaled. Prepare the second run now, but do not prematurely consume it
+or claim it happened. Give each run a unique ID, isolated target repo or clean seed
+branch, fresh application state, research provenance and its own evidence report.
+Keep rehearsal artifacts and a checked backup recording. Label cache reuse,
+fixtures, fake agents, recordings and unfinished work honestly.
+
+Verify filters, citations, shortlist behavior, research handoff, task ownership,
+and final integrated tests. Rehearse a three-minute presentation that starts with
+the working app, shows live research and parallel workers, traces one finding to
+a verified feature, and ends on the delivered app. Recovery is optional after the
+core story works. Preserve unrelated edits and report concrete verification,
+remaining blockers and the exact procedure for starting the judges' run.
+```
