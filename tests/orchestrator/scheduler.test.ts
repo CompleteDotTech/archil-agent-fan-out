@@ -271,7 +271,8 @@ describe("scheduler", () => {
     const run = h.start();
     await eventually(() => h.sandboxes.executions.length === 1);
     const first = (await h.store.currentAttempt(runId, "T1"))!;
-    await h.store.createAttempt({ ...first, attemptId: "T1-a2", n: 2 });
+    await h.store.createAttempt({ ...first, attemptId: "T1-a2", n: 2, state: "submitted" });
+    await h.store.setTaskStatus(runId, "T1", "review");
     await h.complete(h.sandboxes.executions[0]!);
     await vi.advanceTimersByTimeAsync(10);
     expect(check).not.toHaveBeenCalled();
