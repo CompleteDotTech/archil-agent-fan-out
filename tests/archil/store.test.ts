@@ -123,6 +123,36 @@ describe('SQLite Store with node:sqlite', () => {
     expect(await store.listAttempts(plan.runId)).toEqual(expect.arrayContaining([first, updated, second, otherTask]));
   });
 
+  it('preserves disjoint patches applied concurrently to an attempt', async () => {
+    const first = attempt(plan.runId, 'T1', 1);
+    await store.createAttempt(first);
+
+    await Promise.all([
+      store.updateAttempt(plan.runId, first.attemptId, { state: 'failed' }),
+      store.updateAttempt(plan.runId, first.attemptId, { findings: ['Check failed'] }),
+    ]);
+
+    expect(await store.currentAttempt(plan.runId, 'T1')).toEqual({
+      ...first, state: 'failed', findings: ['Check failed'],
+    });
+  });
+
+  it('continues queued attempt patches after an update rejects', async () => {
+    const first = attempt(plan.runId, 'T1', 1);
+    await store.createAttempt(first);
+
+    const results = await Promise.allSettled([
+      store.updateAttempt(plan.runId, 'missing', { state: 'failed' }),
+      store.updateAttempt(plan.runId, first.attemptId, { state: 'passed' }),
+    ]);
+
+    expect(results[0]).toEqual({
+      status: 'rejected', reason: new Error('Unknown attempt: missing'),
+    });
+    expect(results[1]).toEqual({ status: 'fulfilled', value: undefined });
+    expect(await store.currentAttempt(plan.runId, 'T1')).toEqual({ ...first, state: 'passed' });
+  });
+
   it('persists complete manifest JSON and replaces the same attempt manifest', async () => {
     await store.savePlan(plan);
     await store.createAttempt(attempt(plan.runId, 'T1', 1));
