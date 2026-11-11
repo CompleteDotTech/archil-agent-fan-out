@@ -15,14 +15,14 @@ const manifest = (id: string): Manifest => ({
 const pr = (number: number) => ({ number, url: `https://github.com/local/demo/pull/${number}` });
 const success = { exitCode: 0, stdout: 'passed', stderr: '' };
 
-function setup(finalVerify = ['npm test', 'npm run typecheck']) {
+function setup(finalVerify = ['npm test', 'npm run typecheck'], timeoutMs?: number) {
   const store = new MemoryStore();
   const disk = new MemoryDisk();
   const publisher = new RecordingPublisher();
   const sandboxes = new LocalSandboxRunner();
   const exec = vi.spyOn(sandboxes, 'exec').mockResolvedValue(success);
   const ports = { store, disk, publisher, sandboxes };
-  return { ...ports, exec, integrator: createIntegrator(ports, { runId, integrationSandboxId: 'integration', finalVerify }) };
+  return { ...ports, exec, integrator: createIntegrator(ports, { runId, integrationSandboxId: 'integration', finalVerify, timeoutMs }) };
 }
 
 describe('sequential integrator', () => {
@@ -48,6 +48,7 @@ describe('sequential integrator', () => {
       ['integration', refresh], ['integration', 'cd /repo && npm test'], ['integration', 'cd /repo && npm run typecheck'],
       ['integration', refresh], ['integration', 'cd /repo && npm test'], ['integration', 'cd /repo && npm run typecheck'],
     ]);
+    expect(exec.mock.calls.every(call => call[2]?.timeoutMs === 120_000)).toBe(true);
     expect(await store.getTaskStatuses(runId)).toEqual({ T1: 'done', T2: 'done' });
     expect(publisher.calls.filter(call => call.method === 'setStatus').map(call => call.args)).toEqual([
       [runId, 'T1', 'done'], [runId, 'T2', 'done'],
@@ -83,6 +84,20 @@ describe('sequential integrator', () => {
     await integrator.idle();
     expect(exec).toHaveBeenCalledTimes(1);
     expect(await store.getTaskStatuses(runId)).toEqual({ T1: 'blocked' });
+  });
+
+  it.each([0, 1])('blocks a timeout during command %i and continues queued work with the configured limit', async commandIndex => {
+    const { integrator, exec, publisher, store } = setup(['npm test'], 500);
+    if (commandIndex === 1) exec.mockResolvedValueOnce(success);
+    exec.mockRejectedValueOnce(new Error('Execution timed out after 500ms'));
+    integrator.enqueue(task('T1'), manifest('T1'), pr(100));
+    integrator.enqueue(task('T2'), manifest('T2'), pr(101));
+    await integrator.idle();
+    expect(exec.mock.calls.every(call => call[2]?.timeoutMs === 500)).toBe(true);
+    expect(await store.getTaskStatuses(runId)).toEqual({ T1: 'blocked', T2: 'done' });
+    expect(publisher.calls.find(call => call.method === 'comment')?.args[2]).toContain('Execution timed out after 500ms');
+    const results = (await store.listEvents(runId)).filter(item => item.event.type === 'integration.result');
+    expect(results.map(item => item.event.data.pass)).toEqual([false, true]);
   });
 
   it.each(['merge', 'exec'])('records a %s exception and drains the rest of the queue', async failure => {

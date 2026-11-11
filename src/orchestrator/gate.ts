@@ -23,7 +23,7 @@ export function createGate(sandboxes: SandboxRunner, opts?: { timeoutMs?: number
         let streamedOutput = "";
         try {
           const result = await sandboxes.exec(sandboxId, `cd /repo && ${cmd}`, {
-            timeoutMs: opts?.timeoutMs,
+            timeoutMs: opts?.timeoutMs ?? 120_000,
             onOutput: chunk => { streamedOutput += chunk; },
           });
           if (result.exitCode !== 0) {

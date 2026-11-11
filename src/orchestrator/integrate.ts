@@ -14,6 +14,7 @@ interface Options {
   runId: string;
   integrationSandboxId: string;
   finalVerify: string[];
+  timeoutMs?: number;
 }
 
 type PullRequest = { number: number; url: string };
@@ -50,7 +51,9 @@ export function createIntegrator(ports: Ports, opts: Options): IntegratorHooks &
       const merged = await ports.publisher.mergePullRequest(entry.pr.number);
       await event('pr.merged', { number: entry.pr.number, mergeCommit: merged.mergeCommit }, entry);
       for (const cmd of [refresh, ...opts.finalVerify.map(cmd => `cd /repo && ${cmd}`)]) {
-        const result = await ports.sandboxes.exec(opts.integrationSandboxId, cmd);
+        const result = await ports.sandboxes.exec(opts.integrationSandboxId, cmd, {
+          timeoutMs: opts.timeoutMs ?? 120_000,
+        });
         output.push(`$ ${cmd}\nexit code: ${result.exitCode}\n${tail(`${result.stdout}\n${result.stderr}`)}`);
         if (result.exitCode !== 0) {
           pass = false;

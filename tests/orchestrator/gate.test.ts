@@ -65,6 +65,7 @@ describe("deterministic gate", () => {
     expect(result.findings.join("\n")).toContain("package.json");
     expect(result.findings.join("\n")).toContain("src/other.ts");
     expect(sandboxes.exec).toHaveBeenCalledTimes(2);
+    expect(sandboxes.exec.mock.calls.every(call => call[2]?.timeoutMs === 120_000)).toBe(true);
   });
 
   it("ignores claimed success, reports the command and last 40 output lines, and continues", async () => {
@@ -98,6 +99,7 @@ describe("deterministic gate", () => {
   it("turns execution errors into findings and runs remaining commands", async () => {
     const sandboxes = new StubSandboxRunner();
     sandboxes.exec.mockImplementationOnce(async (_id, _cmd, opts) => {
+      expect(opts?.timeoutMs).toBe(120_000);
       opts?.onOutput?.("partial output\n");
       throw new Error("Timed out");
     });
