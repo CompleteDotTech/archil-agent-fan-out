@@ -34,6 +34,8 @@ export async function compose(options: ComposeOptions): Promise<void> {
   let publisher: Publisher;
   let localRemote: string | undefined;
   let localMerge: string | undefined;
+  let dryRemote = false;
+  let dryIntegrationId: string | undefined;
   const workerEnv: Record<string,string> = { AGENT: options.fakeAgent ? 'fake' : 'codex', PUSH: options.local ? '0' : '1', TARGET_REPO: options.targetRepo };
   if (temporary) {
     const localDisk = new LocalDisk(join(temporary, 'disk'));
@@ -62,13 +64,38 @@ export async function compose(options: ComposeOptions): Promise<void> {
     }
     sandboxes = runtime.createArchilSandboxRunner({region, diskId, env: workerEnv, sdk: new sdk.Archil({apiKey:process.env.ARCHIL_API_KEY,region})});
     const [owner, repo] = options.targetRepo.split('/');
+    dryRemote = options.dryRun || !process.env.GITHUB_TOKEN;
     const client = github.createGitHubClient({owner, repo, token: process.env.GITHUB_TOKEN,
-      dryRun: options.dryRun || !process.env.GITHUB_TOKEN});
+      dryRun: dryRemote});
     publisher = github.createPublisher({client, issueOf: async (run: string, task: string) => {
       const issue = (await store.getIssueNumbers(run))[task];
       if (issue === undefined) throw new Error(`No issue for ${task}`);
       return issue;
     }});
+  }
+  if (dryRemote) {
+    const delegate = publisher;
+    const branches = new Map<number,string>();
+    publisher = {
+      publishPlan: plan => delegate.publishPlan(plan),
+      setStatus: (run, task, status) => delegate.setStatus(run, task, status),
+      comment: (run, task, body) => delegate.comment(run, task, body),
+      async openPullRequest(input) {
+        const pr = await delegate.openPullRequest(input);
+        branches.set(pr.number,input.branch);
+        return pr;
+      },
+      async mergePullRequest(number) {
+        if (dryIntegrationId) {
+          const branch = branches.get(number);
+          if (!branch) throw new Error(`Unknown dry-run PR ${number}`);
+          const result = await sandboxes.exec(dryIntegrationId,
+            `cd /repo && git fetch origin ${quote(branch)} && git cherry-pick FETCH_HEAD`, {timeoutMs:120000});
+          if (result.exitCode !== 0) throw new Error('Dry-run integration merge failed');
+        }
+        return delegate.mergePullRequest(number);
+      },
+    };
   }
   await store.init();
   const research = options.local ? new FixtureResearch() : researchModule.createKeenableResearch({
@@ -89,8 +116,12 @@ export async function compose(options: ComposeOptions): Promise<void> {
       plan = await new FixturePlanner().plan(planInput);
     }
   }
-  await planning.runResearch({plan, research, disk});
+  const sources = await planning.runResearch({plan, research, disk}) as Record<string, unknown[]>;
   await store.savePlan(plan);
+  for (const [taskId, items] of Object.entries(sources)) {
+    await store.appendEvent({runId,taskId,at:new Date().toISOString(),type:'research.done',
+      data:{count:items.length,sourcesPath:`/research/${runId}/${taskId}/sources.md`}});
+  }
   await store.appendEvent({runId, at: new Date().toISOString(), type:'run.started', data:{brief:options.brief}});
   const issues = await publisher.publishPlan(plan);
   for (const [id, number] of Object.entries(issues)) await store.setIssueNumber(runId, id, number);
@@ -136,37 +167,65 @@ export async function compose(options: ComposeOptions): Promise<void> {
       resume:false,state:'running',startedAt:now.toISOString(),deadlineAt:new Date(now.getTime()+900000).toISOString()};
     await store.createAttempt(attempt);
     await store.setTaskStatus(runId, architecture.id, 'running');
+    await publisher.setStatus(runId,architecture.id,'running');
+    const emit = (type: string, data: Record<string,unknown>) => store.appendEvent({
+      runId,taskId:architecture.id,attemptId,at:new Date().toISOString(),type,data,
+    });
+    await emit('task.status',{status:'running'});
+    await emit('attempt.started',{attemptId,sandboxId:prepared.templateId,resume:false});
     await sandboxes.exec(prepared.templateId, 'bash /mnt/archil/swarm/worker/run-task.sh', {env:{...workerEnv,
-      RUN_ID:runId,TASK_ID:architecture.id,ATTEMPT_ID:attemptId,BASE_COMMIT:prepared.baseCommit,RESUME:'0'},timeoutMs:900000});
+      RUN_ID:runId,TASK_ID:architecture.id,ATTEMPT_ID:attemptId,BASE_COMMIT:prepared.baseCommit,RESUME:'0'},timeoutMs:900000,
+      onOutput: (line: string) => { void emit('agent.log',{line}).catch(() => {}); }});
     const text = await disk.read(`${taskPath}/manifest.json`);
     if (!text) throw new Error('Architecture worker did not produce a manifest');
     const manifest = JSON.parse(text) as Manifest;
     if (manifest.attemptId !== attemptId) throw new Error('Stale architecture manifest');
     await store.saveManifest(manifest);
     const result = await gate.check({task:architecture,manifest,sandboxId:prepared.templateId});
+    await emit('gate.result',{pass:result.pass,findings:result.findings});
     if (!result.pass) throw new Error(`Architecture gate failed: ${result.findings.join('; ')}`);
     const pr = await publisher.openPullRequest({runId,taskId:architecture.id,branch:manifest.branch,title:architecture.title,body:manifest.summary});
+    await emit('pr.opened',{number:pr.number,url:pr.url});
+    await store.setTaskStatus(runId,architecture.id,'review');
+    await emit('task.status',{status:'review'});
     await publisher.mergePullRequest(pr.number);
+    await emit('pr.merged',{number:pr.number});
     await store.updateAttempt(runId,attemptId,{state:'passed'});
     await store.setTaskStatus(runId,architecture.id,'done');
     await publisher.setStatus(runId,architecture.id,'done');
+    await emit('task.status',{status:'done'});
     await sandboxes.stop(prepared.templateId);
     const [integrationId, ...pool] = await sandboxes.fork(prepared.templateId, 4);
     for (const id of [integrationId,...pool]) sandboxIds.add(id);
-    const integrator = orchestration.createIntegrator({publisher,store,sandboxes,disk}, {
-      runId,integrationSandboxId:integrationId,finalVerify:['npm test'],
+    dryIntegrationId = integrationId;
+    const integrationRunner = dryRemote ? new Proxy(sandboxes, {
+      get(target, property) {
+        if (property === 'exec') return (id: string, command: string, opts?: Parameters<SandboxRunner['exec']>[2]) =>
+          target.exec(id, command.includes('git checkout -B main origin/main') ? 'true' : command, opts);
+        const value = Reflect.get(target,property);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    }) : sandboxes;
+    const integrator = orchestration.createIntegrator({publisher,store,sandboxes:integrationRunner,disk}, {
+      runId,integrationSandboxId:integrationId,finalVerify:['npm run typecheck'],
     });
     const scheduler = orchestration.createScheduler({store,publisher,sandboxes,gate,disk,recovery,integrator}, {
       concurrency:3,attemptTimeoutMs:900000,baseCommit:manifest.headCommit,workerEnv,sandboxPool:pool,pollMs:50,
     });
     const outcome = await scheduler.runUntilDone(runId);
     await integrator.idle();
+    // T1 deliberately installs red acceptance tests for not-yet-built sibling tasks.
+    // Task gates and typecheck protect each merge; the full suite gates delivery.
+    const finalCheck = await sandboxes.exec(integrationId, 'cd /repo && npm test', {timeoutMs:120000});
+    await store.appendEvent({runId,at:new Date().toISOString(),type:'integration.result',
+      data:{pass:finalCheck.exitCode === 0,final:true,output:finalCheck.stdout + finalCheck.stderr}});
     const reportPath = await integrator.writeReport();
     await store.appendEvent({runId,at:new Date().toISOString(),type:'run.done',data:{reportPath}});
     console.log(`Done: ${outcome.done.join(', ')}; blocked: ${outcome.blocked.join(', ') || 'none'}`);
     console.log(`Report: ${reportPath}`);
     if (temporary) console.log(await disk.read(reportPath));
     if (outcome.blocked.length) throw new Error('Run has blocked tasks');
+    if (finalCheck.exitCode !== 0) throw new Error('Final acceptance suite failed');
   } finally {
     if (options.local) {
       await new Promise<void>((done, reject) => server.close(error => error ? reject(error) : done()));
