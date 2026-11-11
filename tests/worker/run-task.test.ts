@@ -129,7 +129,9 @@ describe('sandbox worker', { timeout: 20_000 }, () => {
 
   it('passes task context to Codex and records agent failure independently of verification', async () => {
     const ctx = await setup();
-    ctx.run({ AGENT: 'codex', PATH: await stubCodex(ctx.root), TEST_AGENT_EXIT: '3' });
+    const output = ctx.run({ AGENT: 'codex', PATH: await stubCodex(ctx.root), TEST_AGENT_EXIT: '3' });
+    expect(output.stdout).toContain('dangerously-bypass-approvals-and-sandbox');
+    expect(output.stderr).toContain('agent diagnostic');
     const args = JSON.parse(await readFile(path.join(ctx.dir, 'final.md'), 'utf8')) as string[];
     expect(args.slice(0, 2)).toEqual(['exec', '--dangerously-bypass-approvals-and-sandbox']);
     for (const text of [ctx.task.title, ctx.task.prompt!, 'Acceptance:', 'Result exists', 'OWNS:', 'result.txt', 'VERIFY:', ctx.task.verify[0]!, 'Previous check needs attention', `Research notes:\n${ctx.disk}/research/run-1/T1/sources.md`, 'Never edit package.json or the lockfile.', 'Do not commit.']) {
