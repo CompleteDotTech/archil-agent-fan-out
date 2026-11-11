@@ -1,0 +1,11 @@
+# Project-scoped Codex settings for the build swarm.
+# If Codex ignores project config, copy these keys into ~/.codex/config.toml.
+# If Codex refuses to start because of a key here, delete that line.
+
+[agents]
+# Concurrent subagent threads per session. Orchestrators that run as processes
+# (swarm.mjs orchestrate) each get their own session, so this is a per-process cap.
+max_threads = 12
+# Root = 0. 3 allows root -> orchestrator -> orchestrator -> orchestrator as native subagents.
+# Process orchestrators have no depth limit beyond the swarm caps.
+max_depth = 3
