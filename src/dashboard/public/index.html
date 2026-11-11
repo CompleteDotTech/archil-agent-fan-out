@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Archil · Agent swarm</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1220;--panel:#131f32;--line:#34455e;--text:#f3f7ff;--muted:#bdcbe0;--accent:#80d8ff;--green:#90edb2;--red:#ffb4ab}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:18px/1.5 system-ui,sans-serif}main{max-width:1600px;margin:auto;padding:36px}header{display:flex;justify-content:space-between;align-items:center;gap:24px;flex-wrap:wrap;margin-bottom:28px}h1{font-size:clamp(30px,4vw,48px);line-height:1.15;margin:6px 0;overflow-wrap:anywhere}h2{font-size:24px;margin:0}.eyebrow{color:var(--accent);font-weight:750;letter-spacing:.12em;font-size:14px;text-transform:uppercase}.muted{color:var(--muted)}a{color:var(--accent);text-underline-offset:4px}a:hover{color:white}button,.link-button{font:inherit;font-weight:650;border:1px solid var(--line);border-radius:8px;padding:10px 16px;background:#20324b;color:var(--text);cursor:pointer}button:hover,.link-button:hover{background:#314966}button:disabled{opacity:.6;cursor:wait}button:focus-visible,a:focus-visible,pre:focus-visible{outline:3px solid var(--accent);outline-offset:4px}.links{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.link-button{text-decoration:none}.connection{display:inline-flex;align-items:center;gap:8px;font-size:16px;color:var(--muted)}.connection:before{content:"";width:10px;height:10px;background:currentColor;border-radius:50%}.connection.live{color:var(--green)}.connection.error{color:var(--red)}.summary{display:flex;gap:24px;flex-wrap:wrap;margin:0 0 24px}.metric{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 22px;min-width:140px}.metric strong{font-size:30px;display:block}.metric span{color:var(--muted);font-size:16px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:24px}.panel-heading{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;padding:20px 24px;border-bottom:1px solid var(--line)}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;text-align:left;white-space:nowrap}th{font-size:14px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:#101a2a}td,th{padding:16px 20px;border-bottom:1px solid var(--line)}tbody tr:last-child td{border-bottom:0}tbody tr.selected{background:#1e3650}td.title{white-space:normal;min-width:240px;max-width:520px}.task-select{color:var(--accent);padding:4px 0;background:transparent;border:0;text-align:left}.task-select:hover{background:transparent;color:white;text-decoration:underline}.pill{display:inline-block;border-radius:99px;padding:4px 12px;font-size:15px;font-weight:750;border:1px solid currentColor;text-transform:capitalize}.backlog{color:#cbd5e1}.ready{color:#b8b6ff}.running{color:#80d8ff}.review{color:#ffdb8a}.done{color:var(--green)}.blocked{color:var(--red)}.stop{background:#48262e;border-color:#b26973;color:#ffe2e5}.stop:hover{background:#68313e}.attempt-note{font-size:13px;display:block;color:var(--muted)}#notice{padding:14px 18px;margin:0 0 20px;border-left:4px solid var(--accent);background:var(--panel);overflow-wrap:anywhere}#notice.error{border-color:var(--red);color:var(--red)}#logs{margin:0;padding:24px;min-height:260px;max-height:520px;overflow:auto;font:16px/1.65 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;background:#080f1b;color:#e0edff}#log-count{font-size:15px;color:var(--muted)}footer{color:var(--muted);font-size:15px}[hidden]{display:none!important}@media(max-width:700px){main{padding:20px 12px}.panel-heading{padding:16px}td,th{padding:12px}.summary{gap:10px}.metric{min-width:100px;flex:1;padding:10px 14px}#logs{padding:16px}}
+</style>
+</head>
+<body>
+<main>
+<header>
+<div><div class="eyebrow">Archil / Agent swarm</div><h1>Run <span id="run-id">demo</span></h1><div id="connection" class="connection" role="status">Loading run…</div></div>
+<nav class="links" aria-label="Run resources"><a id="project" class="link-button" target="_blank" rel="noopener noreferrer" hidden>GitHub Project ↗</a><a id="report" class="link-button" target="_blank" rel="noopener noreferrer" hidden>Delivery report ↗</a><button id="retry" hidden>Retry connection</button></nav>
+</header>
+<p id="notice" role="status" hidden></p>
+<section class="summary" aria-label="Run progress"><div class="metric"><strong id="total">0</strong><span>Tasks</span></div><div class="metric"><strong id="running">0</strong><span>Running</span></div><div class="metric"><strong id="completed">0</strong><span>Done</span></div><div class="metric"><strong id="blocked">0</strong><span>Blocked</span></div></section>
+<section class="panel" aria-labelledby="tasks-heading"><div class="panel-heading"><h2 id="tasks-heading">Task activity</h2><span class="muted">Select a task to inspect its log</span></div><div class="table-wrap"><table><thead><tr><th scope="col">ID</th><th scope="col">Title</th><th scope="col">Status</th><th scope="col">Attempt</th><th scope="col">Pull request</th><th scope="col">Sources</th><th scope="col">Control</th></tr></thead><tbody id="tasks"><tr><td colspan="7">Loading tasks…</td></tr></tbody></table></div></section>
+<section class="panel" aria-labelledby="log-heading"><div class="panel-heading"><div><h2 id="log-heading">Agent log <span id="selected-task"></span></h2><span id="log-count">Last 200 lines · select a task</span></div><label><input id="follow" type="checkbox" checked> Follow output</label></div><pre id="logs" tabindex="0" aria-label="Selected task agent log">Waiting for task activity.</pre></section>
+<footer>Durable workspaces. Cited research. Verified pull requests.</footer>
+</main>
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const runId = new URLSearchParams(location.search).get('run') || 'demo';
+  const base = '/api/runs/' + encodeURIComponent(runId);
+  const statuses = new Set(['backlog', 'ready', 'running', 'review', 'done', 'blocked']);
+  const state = { tasks: [], statuses: {}, attempts: new Map(), prs: new Map(), sources: new Map(), logs: new Map(), selected: null, pending: new Set(), seen: new Set(), stream: null, finished: false };
+  $('run-id').textContent = runId;
+  document.title = 'Run ' + runId + ' · Archil';
+
+  function notice(message, error = false) {
+    $('notice').textContent = message;
+    $('notice').className = error ? 'error' : '';
+    $('notice').hidden = !message;
+  }
+  function connection(message, kind = '') {
+    $('connection').textContent = message;
+    $('connection').className = 'connection ' + kind;
+  }
+  function safeLink(element, value) {
+    element.hidden = true;
+    if (typeof value !== 'string' || !value.trim()) return;
+    try {
+      const url = new URL(value, location.href);
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
+      element.href = url.href;
+      element.hidden = false;
+    } catch { /* Invalid links remain hidden. */ }
+  }
+  function cell(row, text, className) {
+    const element = document.createElement('td');
+    element.textContent = text;
+    if (className) element.className = className;
+    row.append(element);
+    return element;
+  }
+  function renderLog() {
+    const lines = state.logs.get(state.selected) || [];
+    $('selected-task').textContent = state.selected ? '· ' + state.selected : '';
+    $('log-count').textContent = lines.length + ' / 200 retained lines · all attempts';
+    $('logs').textContent = lines.length ? lines.join('\n') : (state.selected ? 'No agent output yet for this task.' : 'Waiting for task activity.');
+    if ($('follow').checked) $('logs').scrollTop = $('logs').scrollHeight;
+  }
+  function renderTasks() {
+    const counts = { running: 0, done: 0, blocked: 0 };
+    const body = $('tasks');
+    body.replaceChildren();
+    for (const task of state.tasks) {
+      const status = statuses.has(state.statuses[task.id]) ? state.statuses[task.id] : 'backlog';
+      if (status in counts) counts[status]++;
+      const row = document.createElement('tr');
+      row.className = state.selected === task.id ? 'selected' : '';
+      const select = document.createElement('button');
+      select.className = 'task-select';
+      select.textContent = task.id;
+      select.setAttribute('aria-label', 'Show log for ' + task.id + ': ' + task.title);
+      select.setAttribute('aria-pressed', String(state.selected === task.id));
+      select.onclick = () => { state.selected = task.id; renderTasks(); renderLog(); };
+      cell(row, '').append(select);
+      cell(row, task.title, 'title');
+      const pill = document.createElement('span');
+      pill.className = 'pill ' + status;
+      pill.textContent = status;
+      cell(row, '').append(pill);
+      const attempt = state.attempts.get(task.id);
+      const attemptCell = cell(row, attempt ? String(attempt.n || attempt.attemptId || '—') : '—');
+      if (attempt && (attempt.resume || attempt.state === 'interrupted')) {
+        const note = document.createElement('span');
+        note.className = 'attempt-note';
+        note.textContent = attempt.state === 'interrupted' ? 'Interrupted' : 'Resumed';
+        attemptCell.append(note);
+      }
+      const pr = state.prs.get(task.id);
+      const prCell = cell(row, '—');
+      if (pr) {
+        const link = document.createElement('a');
+        link.textContent = '#' + pr.number + (pr.merged ? ' · merged' : ' ↗');
+        link.target = '_blank'; link.rel = 'noopener noreferrer';
+        safeLink(link, pr.url);
+        if (!link.hidden) { prCell.textContent = ''; prCell.append(link); }
+      }
+      cell(row, String(state.sources.get(task.id) || 0));
+      const controls = cell(row, '—');
+      if (status === 'running') {
+        const button = document.createElement('button');
+        button.className = 'stop'; button.textContent = state.pending.has(task.id) ? 'Stopping…' : 'Stop';
+        button.disabled = state.pending.has(task.id);
+        button.setAttribute('aria-label', 'Stop task ' + task.id);
+        button.onclick = () => stopTask(task.id);
+        controls.textContent = ''; controls.append(button);
+      }
+      body.append(row);
+    }
+    if (!state.tasks.length) { const row = document.createElement('tr'); const td = cell(row, 'No tasks published yet. Waiting for a plan.'); td.colSpan = 7; body.append(row); }
+    $('total').textContent = String(state.tasks.length);
+    $('running').textContent = String(counts.running);
+    $('completed').textContent = String(counts.done);
+    $('blocked').textContent = String(counts.blocked);
+  }
+  async function stopTask(taskId) {
+    state.pending.add(taskId); renderTasks();
+    try {
+      const response = await fetch(base + '/tasks/' + encodeURIComponent(taskId) + '/stop', { method: 'POST' });
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      notice('Stop requested for ' + taskId + '. Watching for interruption and recovery.');
+    } catch (error) { notice('Could not stop ' + taskId + ': ' + error.message, true); }
+    finally { state.pending.delete(taskId); renderTasks(); }
+  }
+  function applyEvent(item, repaint = true) {
+    const event = item.event || item;
+    if (!event || event.runId !== runId || typeof event.type !== 'string') return;
+    const key = JSON.stringify([event.runId, event.taskId, event.attemptId, event.at, event.type, event.data]);
+    if (state.seen.has(key)) return;
+    state.seen.add(key);
+    const data = event.data || {};
+    const id = event.taskId || data.taskId;
+    switch (event.type) {
+      case 'task.status':
+        if (id && statuses.has(data.status)) state.statuses[id] = data.status;
+        break;
+      case 'attempt.started': {
+        const attemptId = event.attemptId || data.attemptId;
+        const n = Number(String(attemptId || '').match(/-a(\d+)$/)?.[1]) || 1;
+        const current = state.attempts.get(id);
+        if (id && (!current || n >= current.n)) state.attempts.set(id, { attemptId, n, resume: data.resume, state: 'running' });
+        break;
+      }
+      case 'attempt.interrupted': {
+        const current = state.attempts.get(id);
+        if (current && current.attemptId === (event.attemptId || data.attemptId)) current.state = 'interrupted';
+        break;
+      }
+      case 'research.done':
+        if (id) state.sources.set(id, Number(data.count) || 0);
+        break;
+      case 'pr.opened':
+        if (id) state.prs.set(id, { number: data.number, url: data.url, merged: false });
+        break;
+      case 'pr.merged':
+        if (state.prs.has(id)) state.prs.get(id).merged = true;
+        break;
+      case 'agent.log':
+        if (id && typeof data.line === 'string') {
+          const lines = state.logs.get(id) || [];
+          lines.push(...data.line.replace(/\r\n/g, '\n').replace(/\n$/, '').split('\n'));
+          state.logs.set(id, lines.slice(-200));
+        }
+        break;
+      case 'run.done':
+        state.finished = true;
+        safeLink($('report'), data.reportPath);
+        connection('Run complete', 'live');
+        break;
+      case 'plan.published':
+        // Fetch the plan when the dashboard was opened before publication.
+        if (!state.tasks.length && repaint) refresh().catch(error => notice(error.message, true));
+        break;
+    }
+    if (repaint) {
+      if (event.type !== 'agent.log') renderTasks();
+      if (event.type === 'agent.log' && id === state.selected) renderLog();
+    }
+  }
+  async function refresh() {
+    const response = await fetch(base, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+    if (!response.ok) throw new Error('Could not load run (' + response.status + ').');
+    const snapshot = await response.json();
+    state.tasks = snapshot.plan?.tasks || [];
+    const history = snapshot.events || [];
+    history.forEach(item => applyEvent(item, false));
+    // Snapshot fields are authoritative: its event tail may omit earlier transitions.
+    state.statuses = { ...state.statuses, ...snapshot.statuses };
+    for (const attempt of snapshot.attempts || []) {
+      const current = state.attempts.get(attempt.taskId);
+      if (!current || attempt.n >= current.n) state.attempts.set(attempt.taskId, attempt);
+    }
+    safeLink($('project'), snapshot.projectUrl);
+    if (!state.selected || !state.tasks.some(task => task.id === state.selected)) {
+      state.selected = state.tasks.find(task => state.statuses[task.id] === 'running')?.id || state.tasks[0]?.id || null;
+    }
+    renderTasks(); renderLog();
+  }
+  function subscribe() {
+    state.stream?.close();
+    const stream = new EventSource(base + '/stream');
+    state.stream = stream;
+    stream.onopen = () => { connection(state.finished ? 'Run complete' : 'Live updates connected', 'live'); $('retry').hidden = true; };
+    const receive = message => {
+      try { applyEvent(JSON.parse(message.data)); }
+      catch { notice('An unreadable live update was skipped.', true); }
+    };
+    stream.onmessage = receive;
+    // Support either ordinary SSE messages or explicitly named event frames.
+    ['run.started','plan.published','research.done','task.status','attempt.started','attempt.interrupted','attempt.stop_requested','agent.log','gate.result','pr.opened','pr.merged','integration.result','run.done'].forEach(type => stream.addEventListener(type, receive));
+    stream.onerror = () => { connection('Connection interrupted · reconnecting…', 'error'); $('retry').hidden = false; };
+  }
+  async function start() {
+    $('retry').hidden = true; connection('Loading run…'); notice('');
+    state.stream?.close();
+    try { await refresh(); subscribe(); }
+    catch (error) { connection('Run unavailable', 'error'); notice(error.message + ' Check the run ID and retry.', true); $('retry').hidden = false; }
+  }
+  $('retry').onclick = start;
+  $('follow').onchange = () => { if ($('follow').checked) $('logs').scrollTop = $('logs').scrollHeight; };
+  window.addEventListener('pagehide', () => state.stream?.close());
+  start();
+})();
+</script>
+</body>
+</html>
