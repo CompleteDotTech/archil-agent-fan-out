@@ -93,9 +93,14 @@ cleanup() {
 }
 trap cleanup EXIT
 
+if [ "$RESUME" = 1 ]; then
+  { kept=$(git -C "$REPO_DIR" status --porcelain 2>/dev/null | wc -l | tr -d ' ') || kept=0
+    msg="Resume check: ${kept:-0} uncommitted files carried over from the previous attempt"
+    printf '%s\n' "$msg" >&2; printf '%s\n' "$msg" >> "$dir/agent.log"; } || true
+fi
 agent_exit=0
 if [ "$AGENT" = fake ]; then
-  if cp -R "$DISK/swarm/fixtures/agent/$TASK_ID/." "$REPO_DIR/" 2>>"$dir/agent.log"; then
+  if cp -R "$DISK/${FIXTURE_ROOT:-swarm/fixtures/agent}/$TASK_ID/." "$REPO_DIR/" 2>>"$dir/agent.log"; then
     printf 'Applied fake agent fixture for %s.\n' "$TASK_ID" > "$dir/final.md"
   else
     agent_exit=$?

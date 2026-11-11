@@ -1,0 +1,27 @@
+[
+  {
+    "title": "Fixture Hackathon 1 (synthetic test data)",
+    "url": "https://event-1.example.test/",
+    "content": "Location: Online\nFormat: online\nEvent dates: December 1-20, 2026\nSubmission deadline: 2026-12-11\nTimezone: UTC\nEligibility: Open to everyone\nPrizes: Test credits, synthetic fixture\nJudging: Test quality and clarity\nDeliverables: Repository and demo\n"
+  },
+  {
+    "title": "Fixture Hackathon 2 (synthetic test data)",
+    "url": "https://event-2.example.test/",
+    "content": "Location: Online\nFormat: online\nEvent dates: December 1-20, 2026\nSubmission deadline: 2026-12-12\nTimezone: UTC\nEligibility: Open to everyone\nPrizes: Test credits, synthetic fixture\nJudging: Test quality and clarity\nDeliverables: Repository and demo\n"
+  },
+  {
+    "title": "Fixture Hackathon 3 (synthetic test data)",
+    "url": "https://event-3.example.test/",
+    "content": "Location: Online\nFormat: online\nEvent dates: December 1-20, 2026\nSubmission deadline: 2026-12-13\nTimezone: UTC\nEligibility: Open to everyone\nPrizes: Test credits, synthetic fixture\nJudging: Test quality and clarity\nDeliverables: Repository and demo\n"
+  },
+  {
+    "title": "Fixture Hackathon 4 (synthetic test data)",
+    "url": "https://event-4.example.test/",
+    "content": "Location: Online\nFormat: online\nEvent dates: December 1-20, 2026\nSubmission deadline: 2026-12-14\nTimezone: UTC\nEligibility: Open to everyone\nPrizes: Test credits, synthetic fixture\nJudging: Test quality and clarity\nDeliverables: Repository and demo\n"
+  },
+  {
+    "title": "Fixture Hackathon 5 (synthetic test data)",
+    "url": "https://event-5.example.test/",
+    "content": "Location: Online\nFormat: online\nEvent dates: December 1-20, 2026\nSubmission deadline: 2026-12-15\nTimezone: UTC\nEligibility: Open to everyone\nPrizes: Test credits, synthetic fixture\nJudging: Test quality and clarity\nDeliverables: Repository and demo\n"
+  }
+]

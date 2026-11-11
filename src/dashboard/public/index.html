@@ -171,7 +171,7 @@
       }
       cell(row, String(state.sources.get(task.id) || 0));
       const controls = cell(row, '—');
-      if (task.kind === 'task' && status === 'running') {
+      if (task.kind === 'task' && status === 'running' && task.dependsOn.length > 0) {
         const button = document.createElement('button');
         button.className = 'stop'; button.textContent = state.pending.has(task.id) ? 'Stopping…' : 'Stop';
         button.disabled = state.pending.has(task.id);
