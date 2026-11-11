@@ -1,10 +1,33 @@
 {
-  "name": "_archil-hackathon",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "directories": {
-    "doc": "docs"
+  "name": "archil-agent-swarm",
+  "version": "0.1.0",
+  "private": true,
+  "description": "GitHub-driven Codex swarm on Archil: a Keenable-grounded planner, forked sandboxes and a deterministic gate turn a brief into a tested app, one verified pull request at a time.",
+  "keywords": [
+    "archil",
+    "codex",
+    "ai-agents",
+    "multi-agent",
+    "agent-swarm",
+    "sandbox",
+    "keenable",
+    "github",
+    "orchestration",
+    "typescript"
+  ],
+  "homepage": "https://github.com/CompleteDotTech/archil-agent-fan-out#readme",
+  "bugs": {
+    "url": "https://github.com/CompleteDotTech/archil-agent-fan-out/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CompleteDotTech/archil-agent-fan-out.git"
+  },
+  "license": "MIT",
+  "author": "Timothy Wayne Gregg",
+  "type": "module",
+  "engines": {
+    "node": ">=22.19"
   },
   "scripts": {
     "test": "vitest run",
@@ -12,21 +35,6 @@
     "swarm": "tsx src/cli.ts",
     "smoke": "tsx scripts/smoke.ts",
     "dashboard:demo": "tsx src/dashboard/dev.ts"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/CompleteDotTech/archil-agent-fan-out.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "module",
-  "bugs": {
-    "url": "https://github.com/CompleteDotTech/archil-agent-fan-out/issues"
-  },
-  "homepage": "https://github.com/CompleteDotTech/archil-agent-fan-out#readme",
-  "engines": {
-    "node": ">=22.13"
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.114",
