@@ -90,7 +90,7 @@ fs.writeFileSync(`${dir}/checks.json`, JSON.stringify(checks, null, 2) + '\n');
 NODE
 
 git add -A
-git commit --allow-empty -m "$TASK_ID ($ATTEMPT_ID)"
+git -c user.name='Archil Swarm' -c user.email='swarm@localhost' commit --allow-empty -m "$TASK_ID ($ATTEMPT_ID)"
 if [ "$PUSH" = 1 ]; then
   : "${GITHUB_PUSH_TOKEN:?}" "${TARGET_REPO:?}"
   # Disable inherited Git tracing and suppress remote diagnostics containing URLs.
