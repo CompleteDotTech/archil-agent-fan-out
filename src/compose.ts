@@ -4,6 +4,14 @@ import { tmpdir } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import * as planning from './planner/index.js';
+import * as researchModule from './research/index.js';
+import * as orchestration from './orchestrator/index.js';
+import * as runtime from './archil/index.js';
+import * as github from './github/index.js';
+import * as sdk from 'disk';
+import { createDashboard } from './dashboard/server.js';
+import { serve } from '@hono/node-server';
 import { FixturePlanner, FixtureResearch, MemoryDisk, MemoryStore, RecordingPublisher, LocalSandboxRunner } from './contracts/fakes.js';
 import type { Plan, Store, SharedDisk, Publisher, SandboxRunner, Manifest, Attempt } from './contracts/types.js';
 
@@ -21,11 +29,6 @@ export async function compose(options: ComposeOptions): Promise<void> {
   try { process.loadEnvFile('.env'); } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
   }
-  const load = (name: string): Promise<any> => import(name);
-  const [planning, researchModule, orchestration, dashboard, { serve }] = await Promise.all([
-    load('./planner/index.js'), load('./research/index.js'), load('./orchestrator/index.js'),
-    load('./dashboard/server.js'), import('@hono/node-server'),
-  ]);
   const runId = `run-${new Date().toISOString().replace(/[:.]/g, '-')}-${randomUUID().slice(0, 8)}`;
   const temporary = options.local ? await mkdtemp(join(tmpdir(), 'archil-swarm-')) : undefined;
   let store: Store;
@@ -48,15 +51,12 @@ export async function compose(options: ComposeOptions): Promise<void> {
     await runFile('git', ['init', '--bare', '--initial-branch=main', localRemote]);
     publisher = new LocalPublisher(localRemote, localMerge);
   } else {
-    const runtime = await load('./archil/index.js');
-    const github = await load('./github/index.js');
-    const sdk = await import('disk');
     const region = process.env.ARCHIL_REGION || 'aws-us-west-2';
     const diskId = process.env.ARCHIL_DISK_ID;
     if (!diskId || !process.env.ARCHIL_API_KEY) throw new Error('ARCHIL_DISK_ID and ARCHIL_API_KEY are required without --local');
     sdk.configure({ apiKey: process.env.ARCHIL_API_KEY, region });
     disk = runtime.createArchilDisk({ diskId, region, apiKey: process.env.ARCHIL_API_KEY });
-    const archilDisk = await (sdk as any).getDisk(diskId);
+    const archilDisk = await sdk.getDisk(diskId);
     store = runtime.createSqliteStore(await runtime.archilDb(archilDisk, 'swarm/state.sqlite'));
     for (const name of ['GITHUB_PUSH_TOKEN', 'CODEX_API_KEY'] as const) {
       const value = name === 'CODEX_API_KEY' ? process.env.OPENAI_API_KEY : process.env[name];
@@ -69,7 +69,8 @@ export async function compose(options: ComposeOptions): Promise<void> {
       dryRun: dryRemote});
     let project: {projectId:string;statusFieldId:string;statusOptionIds:Record<string,string>} | undefined;
     if (process.env.GITHUB_PROJECT_ID && process.env.GITHUB_STATUS_FIELD_ID) {
-      const data = await client.graphql(`query($id: ID!) { node(id: $id) { ... on ProjectV2SingleSelectField { options { id name } } } }`, {id:process.env.GITHUB_STATUS_FIELD_ID});
+      const data = dryRemote ? {node:{options:['Backlog','Ready','Running','Review','Done','Blocked'].map(name => ({name,id:`dry-${name.toLowerCase()}`}))}}
+        : await client.graphql(`query($id: ID!) { node(id: $id) { ... on ProjectV2SingleSelectField { options { id name } } } }`, {id:process.env.GITHUB_STATUS_FIELD_ID});
       const statusOptionIds = Object.fromEntries((data.node?.options ?? []).map((item: {id:string;name:string}) => [item.name.toLowerCase(),item.id]));
       if (!['backlog','ready','running','review','done','blocked'].every(status => statusOptionIds[status])) {
         throw new Error('GitHub Project Status field must have Backlog, Ready, Running, Review, Done, Blocked options');
@@ -115,9 +116,8 @@ export async function compose(options: ComposeOptions): Promise<void> {
   if (options.fixturePlan || options.local) plan = await new FixturePlanner().plan(planInput);
   else {
     try {
-      const { openAiGenerate } = await load('./planner/planner.js');
       if (!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY is missing');
-      plan = await planning.createPlanner({generate: openAiGenerate({model: process.env.OPENAI_MODEL || 'gpt-5.1', apiKey: process.env.OPENAI_API_KEY})}).plan(planInput);
+      plan = await planning.createPlanner({generate: planning.openAiGenerate({model: process.env.OPENAI_MODEL || 'gpt-5.1', apiKey: process.env.OPENAI_API_KEY})}).plan(planInput);
       const validation = planning.validatePlan(plan);
       if (!validation.ok) throw new Error(validation.errors.join('; '));
     } catch (error) {
@@ -159,8 +159,8 @@ export async function compose(options: ComposeOptions): Promise<void> {
   }
   const gate = orchestration.createGate(sandboxes, {timeoutMs:120000});
   const recovery = orchestration.createRecovery({store, sandboxes, disk});
-  const app = dashboard.createDashboard({store}, {stopTask: (run: string, task: string) => recovery.requestStop(run,task)}, {projectUrl:process.env.GITHUB_PROJECT_URL});
-  app.get('/delivery/:runId/report.md', async (context: any) => {
+  const app = createDashboard({store}, {stopTask: (run: string, task: string) => recovery.requestStop(run,task)}, {projectUrl:process.env.GITHUB_PROJECT_URL});
+  app.get('/delivery/:runId/report.md', async context => {
     if (context.req.param('runId') !== runId) return context.notFound();
     const report = await disk.read(`/delivery/${runId}/report.md`);
     return report === undefined ? context.notFound() : context.text(report);
@@ -215,8 +215,9 @@ export async function compose(options: ComposeOptions): Promise<void> {
         return typeof value === 'function' ? value.bind(target) : value;
       },
     }) : sandboxes;
+    const finalVerify = ['npm run typecheck'];
     const integrator = orchestration.createIntegrator({publisher,store,sandboxes:integrationRunner,disk}, {
-      runId,integrationSandboxId:integrationId,finalVerify:['npm run typecheck'],
+      runId,integrationSandboxId:integrationId,finalVerify,
     });
     const scheduler = orchestration.createScheduler({store,publisher,sandboxes,gate,disk,recovery,integrator}, {
       concurrency:3,attemptTimeoutMs:900000,baseCommit:manifest.headCommit,workerEnv,sandboxPool:pool,pollMs:50,
@@ -228,11 +229,24 @@ export async function compose(options: ComposeOptions): Promise<void> {
     const finalCheck = await sandboxes.exec(integrationId, 'cd /repo && npm test', {timeoutMs:120000});
     await store.appendEvent({runId,at:new Date().toISOString(),type:'integration.result',
       data:{pass:finalCheck.exitCode === 0,final:true,output:finalCheck.stdout + finalCheck.stderr}});
+    finalVerify.push('npm test');
+    const success = outcome.blocked.length === 0 && finalCheck.exitCode === 0;
+    for (const epic of plan.tasks.filter(task => task.kind === 'epic')) {
+      await store.setTaskStatus(runId,epic.id,success ? 'done' : 'blocked');
+      await publisher.setStatus(runId,epic.id,success ? 'done' : 'blocked');
+      await store.appendEvent({runId,taskId:epic.id,at:new Date().toISOString(),type:'task.status',data:{status:success ? 'done' : 'blocked'}});
+    }
     const reportPath = await integrator.writeReport();
     await store.appendEvent({runId,at:new Date().toISOString(),type:'run.done',data:{reportPath}});
     console.log(`Done: ${outcome.done.join(', ')}; blocked: ${outcome.blocked.join(', ') || 'none'}`);
     console.log(`Report: ${reportPath}`);
-    if (temporary) console.log(await disk.read(reportPath));
+    if (temporary) {
+      const localReport = resolve('.swarm','runs',runId,'report.md');
+      await mkdir(dirname(localReport),{recursive:true});
+      await writeFile(localReport,(await disk.read(reportPath)) ?? '');
+      console.log(`Saved report: ${localReport}`);
+    }
+    console.log(`Final acceptance suite: ${finalCheck.exitCode === 0 ? 'PASS' : 'FAIL'}`);
     if (outcome.blocked.length) throw new Error('Run has blocked tasks');
     if (finalCheck.exitCode !== 0) throw new Error('Final acceptance suite failed');
   } finally {

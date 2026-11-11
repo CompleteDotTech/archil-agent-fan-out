@@ -56,13 +56,15 @@ if [ "$AGENT" = fake ]; then
 elif [ "$RESUME" = 1 ]; then
   codex exec resume --last --dangerously-bypass-approvals-and-sandbox \
     "You were interrupted. Check git status and the task above, then finish it." \
-    < /dev/null >"$dir/final.md" 2>>"$dir/agent.log" || agent_exit=$?
+    < /dev/null > >(tee "$dir/final.md") 2> >(tee -a "$dir/agent.log" >&2) || agent_exit=$?
 else
   codex exec --dangerously-bypass-approvals-and-sandbox "$PROMPT" \
-    < /dev/null >"$dir/final.md" 2>>"$dir/agent.log" || agent_exit=$?
+    < /dev/null > >(tee "$dir/final.md") 2> >(tee -a "$dir/agent.log" >&2) || agent_exit=$?
 fi
 cleanup
 trap - EXIT
+# Drain output tees before syncing and publishing the manifest.
+wait
 sync "$dir/agent.log" "$dir/final.md"
 
 # Run each command independently, preserving all exit codes even after failures.
