@@ -40,11 +40,37 @@ describe('GitHub flow', () => {
       path: '/repos/{owner}/{repo}/issues/{issue_number}/comments', params: { issue_number: 42, body: 'All checks passed' } });
   });
 
-  it('reuses an existing open PR without looking up the issue or posting', async () => {
+  it('reuses dry-run PR identities by branch in the bound publisher', async () => {
+    const { client, issueOf, onCall } = await setup();
+    const open = openPullRequest(client, issueOf);
+    const first = await open(input);
+    expect(await open({ ...input, title: 'Updated title' })).toEqual(first);
+    const second = await open({ ...input, branch: 'swarm/run/T1/a2' });
+    expect(first).toEqual({ number: 101, url: 'https://github.com/test/demo/pull/101' });
+    expect(second).toEqual({ number: 102, url: 'https://github.com/test/demo/pull/102' });
+    expect(await open(input)).toEqual(first);
+    expect(await open({ ...input, branch: 'swarm/run/T1/a2' })).toEqual(second);
+    expect(onCall.mock.calls.filter(([call]) => call.method === 'POST')).toHaveLength(2);
+    expect(issueOf).toHaveBeenCalledTimes(2);
+
+    const other = await setup();
+    expect(await openPullRequest(other.client, other.issueOf)(input)).toEqual(first);
+    expect(other.onCall.mock.calls.filter(([call]) => call.method === 'POST')).toHaveLength(1);
+  });
+
+  it('looks up existing live PRs on every call without looking up the issue or posting', async () => {
     const { client, issueOf } = await setup();
-    const request = vi.spyOn(client, 'request').mockResolvedValue([{ number: 77, html_url: 'https://example.test/77' }]);
-    expect(await openPullRequest(client, issueOf)(input)).toEqual({ number: 77, url: 'https://example.test/77' });
-    expect(request).toHaveBeenCalledTimes(1);
+    client.dryRun = false;
+    const request = vi.spyOn(client, 'request')
+      .mockResolvedValueOnce([{ number: 77, html_url: 'https://example.test/77' }])
+      .mockResolvedValueOnce([{ number: 78, html_url: 'https://example.test/78' }]);
+    const open = openPullRequest(client, issueOf);
+    expect(await open(input)).toEqual({ number: 77, url: 'https://example.test/77' });
+    expect(await open(input)).toEqual({ number: 78, url: 'https://example.test/78' });
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(request).toHaveBeenLastCalledWith('GET /repos/{owner}/{repo}/pulls', {
+      state: 'open', head: `test:${input.branch}`, per_page: 100,
+    });
     expect(issueOf).not.toHaveBeenCalled();
   });
 
