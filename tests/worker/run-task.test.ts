@@ -97,6 +97,36 @@ describe('sandbox worker', { timeout: 20_000 }, () => {
     expect(log).toContain('next check');
   });
 
+  it('commits with explicit identity in a fresh sandbox without Git configuration', async () => {
+    const ctx = await setup();
+    ctx.git('config', '--unset', 'user.name');
+    ctx.git('config', '--unset', 'user.email');
+    const home = path.join(ctx.root, 'home');
+    await mkdir(home);
+    const globalConfig = path.join(home, '.gitconfig');
+    const env = Object.fromEntries(Object.entries(process.env)
+      .filter(([key]) => !key.startsWith('GIT_') && key !== 'EMAIL'));
+    Object.assign(env, {
+      HOME: home, XDG_CONFIG_HOME: path.join(home, '.config'),
+      GIT_CONFIG_GLOBAL: globalConfig, GIT_CONFIG_NOSYSTEM: '1',
+      RUN_ID: 'run-1', TASK_ID: 'T1', ATTEMPT_ID: 'T1-a1',
+      BASE_COMMIT: ctx.baseCommit, AGENT: 'fake', PUSH: '0', RESUME: '0',
+      REPO_DIR: ctx.repo, DISK: ctx.disk,
+    });
+    const result = spawnSync('bash', [script], { env, encoding: 'utf8' });
+    expect(result.error).toBeUndefined();
+    expect(result.status, result.stderr).toBe(0);
+    const manifest = await ctx.manifest();
+    expect(manifest.status).toBe('complete');
+    expect(manifest.changedFiles).toEqual(['result.txt']);
+    expect(manifest.headCommit).not.toBe(ctx.baseCommit);
+    expect(ctx.git('show', '-s', '--format=%an <%ae>|%cn <%ce>', manifest.headCommit))
+      .toBe('Archil Swarm <swarm@localhost>|Archil Swarm <swarm@localhost>');
+    const localConfig = ctx.git('config', '--local', '--list');
+    expect(localConfig).not.toMatch(/user\.(name|email)=/);
+    await expect(readFile(globalConfig, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
   it('passes task context to Codex and records agent failure independently of verification', async () => {
     const ctx = await setup();
     ctx.run({ AGENT: 'codex', PATH: await stubCodex(ctx.root), TEST_AGENT_EXIT: '3' });
