@@ -16,10 +16,11 @@
 <nav class="links" aria-label="Run resources"><a id="project" class="link-button" target="_blank" rel="noopener noreferrer" hidden>GitHub Project ↗</a><a id="report" class="link-button" target="_blank" rel="noopener noreferrer" hidden>Delivery report ↗</a><button id="retry" hidden>Retry connection</button></nav>
 </header>
 <p id="notice" role="status" hidden></p>
-<p id="run-mode" class="muted">Execution mode will appear when recorded by the orchestrator.</p>
-<section class="panel" aria-labelledby="research-heading"><div class="panel-heading"><div><h2 id="research-heading">Research agents · Keenable preflight</h2><span class="muted">Discovery first, then requirements and comparison. Coding begins after validated consolidation.</span></div><a id="dataset" target="_blank" rel="noopener noreferrer" hidden>Consolidated dataset ↗</a></div><div class="table-wrap"><table><thead><tr><th>Research role</th><th>State</th><th>Findings</th><th>Evidence</th></tr></thead><tbody id="research-roles"></tbody></table></div><p id="research-summary" style="padding:0 24px">No research role executions recorded.</p></section>
 <p id="headline" role="status">Waiting for the plan…</p>
 <section class="proof" aria-label="Proof of work"><div class="metric"><span>Forked</span><strong id="p-forked">—</strong><small id="p-forked-d">sandboxes from one template</small></div><div class="metric"><span>Keenable sources</span><strong id="p-sources">—</strong><small>cited into workers</small></div><div class="metric"><span>Gates passed</span><strong id="p-gates">—</strong><small>verify + ownership</small></div><div class="metric"><span>PRs merged</span><strong id="p-prs">—</strong><small id="p-prs-d">into main</small></div><div class="metric"><span>Recoveries</span><strong id="p-rec">—</strong><small id="p-rec-d">stopped, resumed in place</small></div></section>
+<p id="run-mode" class="muted">Execution mode will appear when recorded by the orchestrator.</p>
+<section class="panel" aria-labelledby="research-heading"><div class="panel-heading"><div><h2 id="research-heading">Research agents · Keenable preflight</h2><span class="muted">Discovery first, then requirements and comparison. Coding begins after validated consolidation.</span></div><a id="dataset" target="_blank" rel="noopener noreferrer" hidden>Consolidated dataset ↗</a></div><div class="table-wrap"><table><thead><tr><th>Research role</th><th>State</th><th>Findings</th><th>Evidence</th></tr></thead><tbody id="research-roles"></tbody></table></div><p id="research-summary" style="padding:0 24px">No research role executions recorded.</p></section>
+
 <span id="total" hidden></span><span id="running" hidden></span><span id="completed" hidden></span><span id="blocked" hidden></span>
 <section class="panel" aria-labelledby="tasks-heading"><div class="panel-heading"><h2 id="tasks-heading">Task activity</h2><span class="muted">Select a task to inspect its log</span></div><div class="table-wrap"><table><thead><tr><th scope="col">ID</th><th scope="col">Title</th><th scope="col">Status</th><th scope="col">Attempt</th><th scope="col">Pull request</th><th scope="col">Sources</th><th scope="col">Control</th></tr></thead><tbody id="tasks"><tr><td colspan="7">Loading tasks…</td></tr></tbody></table></div></section>
 <section class="panel" aria-labelledby="log-heading"><div class="panel-heading"><div><h2 id="log-heading">Agent log <span id="selected-task"></span></h2><span id="log-count">Last 200 lines · select a task</span></div><label><input id="follow" type="checkbox" checked> Follow output</label></div><pre id="logs" tabindex="0" aria-label="Selected task agent log">Waiting for task activity.</pre></section>
@@ -81,7 +82,9 @@
       const current = state.roles.get(role);
       const row = document.createElement('tr'); cell(row, role);
       cell(row, current?.status || 'not started'); cell(row, current?.count === undefined ? '—' : String(current.count));
-      const detail = cell(row, current?.error || current?.errors?.join('; ') || '');
+      const errors = current?.errors || (current?.error ? [current.error] : []);
+      const detail = cell(row, errors.length ? errors.length + ' evidence warnings · ' : '', 'title');
+      detail.title = errors.join('; ');
       if (current?.status === 'complete') {
         const prefix = '/research/' + encodeURIComponent(runId) + '/roles/' + role;
         evidenceLink(detail, 'Findings JSON', current.artifactPath || prefix + '/findings.json');
@@ -93,7 +96,7 @@
       safeLink($('dataset'), state.dataset.path || state.dataset.datasetPath);
       $('research-summary').textContent = String(state.dataset.eventCount ?? state.dataset.count ?? 0) + ' researched events · ' + (state.dataset.researchMode || 'research mode not recorded') + (state.dataset.shortfall ? ' · Shortfall: ' + state.dataset.shortfall : '');
     }
-    if (state.metadata) $('run-mode').textContent = [state.metadata.mode, state.metadata.agentMode || state.metadata.agent, state.metadata.researchMode, state.metadata.seedCommit && 'seed ' + state.metadata.seedCommit].filter(Boolean).join(' · ') || 'Run metadata recorded';
+    if (state.metadata) $('run-mode').textContent = [state.metadata.mode, state.metadata.planMode, state.metadata.infrastructure, state.metadata.agentMode || state.metadata.agent, state.metadata.researchMode, state.metadata.seedCommit && 'seed ' + state.metadata.seedCommit].filter(Boolean).join(' · ') || 'Run metadata recorded';
   }
   async function loadDataset() {
     if (!state.dataset || state.datasetContent || state.datasetLoading) return;
@@ -102,7 +105,7 @@
       const response = await fetch('/research/' + encodeURIComponent(runId) + '/dataset.json', { cache: 'no-store' });
       if (!response.ok) return;
       const data = await response.json();
-      if (data.runId === runId) { state.datasetContent = data; renderTrace(); }
+      if (data.runId === runId) { state.datasetContent = data; renderTasks(); }
     } catch { /* Artifact links remain available if the preview cannot load. */ }
     finally { state.datasetLoading = false; }
   }
@@ -191,19 +194,19 @@
     renderResearch(); renderTrace(); void loadDataset(); renderProof(counts);
   }
   function renderProof(counts) {
-    const root = state.tasks.find(task => !task.dependsOn?.length);
+    const root = state.tasks.find(task => task.kind === 'task' && !task.dependsOn?.length);
     const workers = state.tasks.filter(task => task.kind === 'task' && task.dependsOn?.length);
     const rootStatus = root && state.statuses[root.id];
     const merged = [...state.prs.values()].filter(pr => pr.merged).length;
     let headline = 'Waiting for the plan…';
     if (state.final) headline = 'Delivered: ' + merged + ' PRs merged, npm test ' + (state.final.pass ? 'passed ✓' : 'failed ✗') + ' on main.';
     else if (rootStatus === 'running') headline = 'Architecture running in the template sandbox. ' + (workers.length || 'The') + ' workers fork from it next.';
-    else if (counts.running > 0) headline = counts.running + ' Codex agents building in parallel, in Archil sandboxes forked from one template.';
+    else if (workers.some(t => state.statuses[t.id] === 'running')) headline = workers.filter(t => state.statuses[t.id] === 'running').length + ' Codex agents building in parallel, in Archil sandboxes forked from one template.';
     else if (state.tasks.length) headline = 'Plan published: ' + state.tasks.length + ' tasks. Research and architecture come first.';
     $('headline').textContent = headline;
     $('p-forked').textContent = state.fork ? String(state.fork.n) : '—';
     $('p-forked-d').textContent = state.fork ? 'sandboxes in ' + (state.fork.ms / 1000).toFixed(1) + ' s' : 'sandboxes from one template';
-    const sources = [...state.sources.values()].reduce((a, b) => a + b, 0);
+    const sources = state.datasetContent?.sources?.length ?? [...state.sources.values()].reduce((a, b) => a + b, 0);
     $('p-sources').textContent = state.researchSeen ? String(sources) : '—';
     const gates = [...state.gates.values()];
     $('p-gates').textContent = gates.length ? gates.filter(g => g.pass).length + '/' + gates.length : '—';
@@ -239,7 +242,7 @@
         if (data.role) state.roles.set(data.role, data);
         break;
       case 'research.dataset':
-        state.dataset = data;
+        state.dataset = data; state.researchSeen = true;
         break;
       case 'gate.result':
         if (id) state.gates.set(id, data);
@@ -262,7 +265,7 @@
         if (id) state.stops.set(id, Date.parse(event.at));
         break;
       case 'integration.result':
-        if (!event.taskId) state.final = { pass: !!data.pass };
+        if (data.final === true) state.final = { pass: !!data.pass };
         break;
       case 'attempt.interrupted': {
         const current = state.attempts.get(id);
@@ -285,6 +288,8 @@
           state.logs.set(id, lines.slice(-200));
         }
         break;
+      case 'run.failed':
+        state.finished = true; notice('Run failed during ' + (data.phase || 'execution'), true); connection('Run failed', 'error'); break;
       case 'run.done':
         state.finished = true;
         safeLink($('report'), data.reportPath);
@@ -330,7 +335,7 @@
     };
     stream.onmessage = receive;
     // Support either ordinary SSE messages or explicitly named event frames.
-    ['run.started','plan.published','research.role','research.dataset','research.done','task.status','attempt.started','attempt.interrupted','attempt.stop_requested','sandbox.forked','agent.log','gate.result','pr.opened','pr.merged','integration.result','run.done'].forEach(type => stream.addEventListener(type, receive));
+    ['run.started','plan.published','research.role','research.dataset','research.done','task.status','attempt.started','attempt.interrupted','attempt.stop_requested','sandbox.forked','agent.log','gate.result','pr.opened','pr.merged','integration.result','run.failed','run.done'].forEach(type => stream.addEventListener(type, receive));
     stream.onerror = () => { connection('Connection interrupted · reconnecting…', 'error'); $('retry').hidden = false; };
   }
   async function start() {

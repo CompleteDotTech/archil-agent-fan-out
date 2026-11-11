@@ -82,6 +82,7 @@ async function main(): Promise<void> {
       await openPr(task.id, 100);
       await event('pr.merged', { number: 100 }, task.id);
       await status(task.id, 'done');
+      await event('sandbox.forked', { sandboxIds: ['sbx-int-4a1f00', 'sbx-api-a41f0e', 'sbx-web-77c2b1', 'sbx-search-c90e3d'], ms: 6100 }, task.id);
     } else {
       const worker = { taskId: task.id, attempt, progress: 0, finishAt: 25 + workers.length * 8 };
       workers.push(worker);
@@ -119,6 +120,7 @@ async function main(): Promise<void> {
         if (Date.now() < (worker.resumeAt ?? Infinity)) continue;
         worker.attempt = await startAttempt(worker.taskId, worker.attempt.n + 1);
         delete worker.resumeAt;
+        await log(worker, 'Resume check: 3 uncommitted files carried over from the previous attempt');
         await log(worker, 'Resumed the Codex session in the same sandbox; continuing from the saved working tree.');
       }
       if (worker.attempt.state !== 'running') continue;
@@ -160,8 +162,8 @@ async function main(): Promise<void> {
   const app = createDashboard({ store }, { stopTask }, {
     publicDir: fileURLToPath(new URL('./public/', import.meta.url)),
   });
-  const server = serve({ fetch: app.fetch, port: 3000 }, () => {
-    console.log('Dashboard demo: http://localhost:3000/?run=demo (simulated data; no external services)');
+  const server = serve({ fetch: app.fetch, port: Number(process.env.PORT) || 3000 }, () => {
+    console.log('Dashboard demo: http://localhost:' + (Number(process.env.PORT) || 3000) + '/?run=demo (simulated data; no external services)');
   });
   const sockets = new Set<Socket>();
   server.on('connection', (socket: Socket) => {
