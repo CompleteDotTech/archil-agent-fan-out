@@ -53,7 +53,11 @@ export function setStatus(
 export function openPullRequest(
   client: GitHubClient, issueOf: IssueOf, _project?: FlowProject,
 ): Publisher['openPullRequest'] {
+  // Dry-run GETs have no server state; retain identities for this bound publisher.
+  const dryPullRequests = new Map<string, { number: number; url: string }>();
   return async ({ runId, taskId, branch, title, body }) => {
+    const cached = client.dryRun ? dryPullRequests.get(branch) : undefined;
+    if (cached) return cached;
     const existing = await client.request(`GET ${pulls}`, {
       state: 'open', head: `${client.owner}:${branch}`, per_page: 100,
     });
@@ -65,7 +69,9 @@ export function openPullRequest(
       head: branch, base: 'main', title,
       body: `${body}\n\nCloses #${issue}\n${marker(runId, taskId)}`,
     });
-    return { number: pr.number, url: pr.html_url };
+    const result = { number: pr.number, url: pr.html_url };
+    if (client.dryRun) dryPullRequests.set(branch, result);
+    return result;
   };
 }
 
