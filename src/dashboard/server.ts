@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Hono } from 'hono';
@@ -13,6 +14,10 @@ function eventCursor(value: string | undefined): number | undefined {
 export function createDashboard(ports: { store: Store; disk?: SharedDisk }, hooks: { stopTask(runId: string, taskId: string): Promise<void> }, opts?: { projectUrl?: string; publicDir?: string }): Hono {
   const app = new Hono();
   const { store } = ports;
+  // Identifies this server process. Event indexes restart when an in-memory
+  // store restarts, so clients reload when this changes instead of resuming
+  // from a cursor that belongs to a previous process.
+  const serverId = randomUUID();
 
   app.get('/api/runs/:runId', async c => {
     const runId = c.req.param('runId');
@@ -25,7 +30,7 @@ export function createDashboard(ports: { store: Store; disk?: SharedDisk }, hook
       store.listEvents(runId),
     ]);
     return c.json({ plan, statuses, attempts, issues, events: events.slice(-300),
-      evidenceEvents: events.filter(item => item.event.type !== 'agent.log'), projectUrl: opts?.projectUrl ?? null });
+      evidenceEvents: events.filter(item => item.event.type !== 'agent.log'), projectUrl: opts?.projectUrl ?? null, serverId });
   });
 
   // Read-only artifact views. Never expose arbitrary shared-disk paths or HTML
@@ -73,6 +78,7 @@ export function createDashboard(ports: { store: Store; disk?: SharedDisk }, hook
       stream.onAbort(cancelWait);
       signal.addEventListener('abort', abort, { once: true });
       if (signal.aborted) abort();
+      let idlePolls = 0;
       try {
         while (!stream.aborted) {
           const events = await store.listEvents(runId, after);
@@ -82,6 +88,9 @@ export function createDashboard(ports: { store: Store; disk?: SharedDisk }, hook
             after = entry.index;
           }
           if (stream.aborted) break;
+          // Keep idle connections alive through proxies that drop silent streams.
+          idlePolls = events.length ? 0 : idlePolls + 1;
+          if (idlePolls >= 15) { idlePolls = 0; await stream.write(': keepalive\n\n'); }
           await new Promise<void>(resolve => {
             wake = resolve;
             timer = setTimeout(resolve, 1_000);

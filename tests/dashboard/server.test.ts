@@ -54,7 +54,7 @@ describe('dashboard server', () => {
     expect(snapshot).toEqual({
       plan, statuses: { T1: 'running' }, attempts: [attempt], issues: { T1: 42 },
       events: (await store.listEvents('demo')).slice(-300), projectUrl: 'https://github.com/orgs/example/projects/1',
-      evidenceEvents: [],
+      evidenceEvents: [], serverId: expect.any(String),
     });
     expect(snapshot.events).toHaveLength(300);
     expect(snapshot.events[0].event.data.line).toBe('5');
@@ -171,6 +171,34 @@ describe('dashboard server', () => {
     const reader = response.body!.getReader();
     try {
       expect((await readEvent(reader)).entry.index).toBe(expected);
+    } finally {
+      controller.abort();
+      await reader.cancel();
+    }
+  });
+
+  it('identifies the server process so clients can detect a restart', async () => {
+    const { app } = await setup();
+    const first = (await (await app.request('/api/runs/demo')).json()).serverId;
+    const again = (await (await app.request('/api/runs/demo')).json()).serverId;
+    const { app: restarted } = await setup();
+    const other = (await (await restarted.request('/api/runs/demo')).json()).serverId;
+    expect(first).toMatch(/^[0-9a-f-]{36}$/);
+    expect(again).toBe(first);
+    expect(other).not.toBe(first);
+  });
+
+  it('sends a keepalive comment while the stream is idle', async () => {
+    vi.useFakeTimers();
+    const { app } = await setup();
+    const controller = new AbortController();
+    const response = await app.request('/api/runs/demo/stream', { signal: controller.signal });
+    const reader = response.body!.getReader();
+    try {
+      const next = reader.read();
+      await vi.advanceTimersByTimeAsync(15_000);
+      const { value } = await next;
+      expect(new TextDecoder().decode(value)).toBe(': keepalive\n\n');
     } finally {
       controller.abort();
       await reader.cancel();

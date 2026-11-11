@@ -36,7 +36,7 @@
   const runId = new URLSearchParams(location.search).get('run') || 'demo';
   const base = '/api/runs/' + encodeURIComponent(runId);
   const statuses = new Set(['backlog', 'ready', 'running', 'review', 'done', 'blocked']);
-  const state = { roles: new Map(), gates: new Map(), dataset: null, datasetContent: null, datasetLoading: false, metadata: null, tasks: [], statuses: {}, attempts: new Map(), prs: new Map(), sources: new Map(), logs: new Map(), selected: null, pending: new Set(), seen: new Set(), stream: null, finished: false, fork: null, stops: new Map(), recoveries: [], final: null, researchSeen: false };
+  const state = { roles: new Map(), gates: new Map(), dataset: null, datasetContent: null, datasetLoading: false, metadata: null, tasks: [], statuses: {}, attempts: new Map(), prs: new Map(), sources: new Map(), logs: new Map(), selected: null, pending: new Set(), seen: new Set(), stream: null, finished: false, fork: null, stops: new Map(), recoveries: [], final: null, researchSeen: false, serverId: null, reconnecting: false, retryTimer: 0, retryDelay: 2000 };
   $('run-id').textContent = runId;
   document.title = 'Run ' + runId + ' · Archil';
 
@@ -431,6 +431,9 @@
     const response = await fetch(base, { headers: { Accept: 'application/json' }, cache: 'no-store' });
     if (!response.ok) throw new Error('Could not load run (' + response.status + ').');
     const snapshot = await response.json();
+    // A different server process restarts event numbering; start over cleanly.
+    if (state.serverId && snapshot.serverId && snapshot.serverId !== state.serverId) { location.reload(); return; }
+    state.serverId = snapshot.serverId || state.serverId;
     state.tasks = snapshot.plan?.tasks || [];
     const history = [...(snapshot.evidenceEvents || []), ...(snapshot.events || [])];
     history.forEach(item => applyEvent(item, false));
@@ -450,7 +453,12 @@
     state.stream?.close();
     const stream = new EventSource(base + '/stream');
     state.stream = stream;
-    stream.onopen = () => { connection(state.finished ? 'Run complete' : 'Live updates connected', 'live'); $('retry').hidden = true; };
+    stream.onopen = () => {
+      connection(state.finished ? 'Run complete' : 'Live updates connected', 'live'); $('retry').hidden = true;
+      state.retryDelay = 2000;
+      // After a reconnect, re-sync from the snapshot (and detect a restarted server).
+      if (state.reconnecting) { state.reconnecting = false; refresh().catch(() => {}); }
+    };
     const receive = message => {
       try { applyEvent(JSON.parse(message.data)); }
       catch { notice('An unreadable live update was skipped.', true); }
@@ -458,17 +466,29 @@
     stream.onmessage = receive;
     // Support either ordinary SSE messages or explicitly named event frames.
     ['run.started','plan.published','research.role','research.dataset','research.done','task.status','attempt.started','attempt.interrupted','attempt.stop_requested','sandbox.forked','agent.log','gate.result','pr.opened','pr.merged','integration.result','run.reopened','run.failed','run.done'].forEach(type => stream.addEventListener(type, receive));
-    stream.onerror = () => { connection('Connection interrupted · reconnecting…', 'error'); $('retry').hidden = false; };
+    stream.onerror = () => {
+      state.reconnecting = true; $('retry').hidden = false;
+      if (stream.readyState !== EventSource.CLOSED) { connection('Connection interrupted · reconnecting…', 'error'); return; }
+      // The browser gave up (e.g. an HTTP error); keep retrying with backoff.
+      stream.close(); scheduleRetry();
+    };
+  }
+  function scheduleRetry() {
+    clearTimeout(state.retryTimer);
+    const delay = state.retryDelay; state.retryDelay = Math.min(30000, delay * 2);
+    connection('Disconnected · retrying in ' + Math.round(delay / 1000) + 's', 'error');
+    state.retryTimer = setTimeout(start, delay);
   }
   async function start() {
-    $('retry').hidden = true; connection('Loading run…'); notice('');
+    clearTimeout(state.retryTimer);
+    $('retry').hidden = true; connection('Loading run…');
     state.stream?.close();
-    try { await refresh(); subscribe(); }
-    catch (error) { connection('Run unavailable', 'error'); notice(error.message + ' Check the run ID and retry.', true); $('retry').hidden = false; }
+    try { await refresh(); notice(''); subscribe(); }
+    catch (error) { notice(error.message + ' Check the run ID; retrying automatically.', true); $('retry').hidden = false; scheduleRetry(); }
   }
   $('retry').onclick = start;
   $('follow').onchange = () => { if ($('follow').checked) $('logs').scrollTop = $('logs').scrollHeight; };
-  window.addEventListener('pagehide', () => state.stream?.close());
+  window.addEventListener('pagehide', () => { clearTimeout(state.retryTimer); state.stream?.close(); });
   start();
 })();
 </script>
