@@ -67,7 +67,16 @@ export async function compose(options: ComposeOptions): Promise<void> {
     dryRemote = options.dryRun || !process.env.GITHUB_TOKEN;
     const client = github.createGitHubClient({owner, repo, token: process.env.GITHUB_TOKEN,
       dryRun: dryRemote});
-    publisher = github.createPublisher({client, issueOf: async (run: string, task: string) => {
+    let project: {projectId:string;statusFieldId:string;statusOptionIds:Record<string,string>} | undefined;
+    if (process.env.GITHUB_PROJECT_ID && process.env.GITHUB_STATUS_FIELD_ID) {
+      const data = await client.graphql(`query($id: ID!) { node(id: $id) { ... on ProjectV2SingleSelectField { options { id name } } } }`, {id:process.env.GITHUB_STATUS_FIELD_ID});
+      const statusOptionIds = Object.fromEntries((data.node?.options ?? []).map((item: {id:string;name:string}) => [item.name.toLowerCase(),item.id]));
+      if (!['backlog','ready','running','review','done','blocked'].every(status => statusOptionIds[status])) {
+        throw new Error('GitHub Project Status field must have Backlog, Ready, Running, Review, Done, Blocked options');
+      }
+      project = {projectId:process.env.GITHUB_PROJECT_ID,statusFieldId:process.env.GITHUB_STATUS_FIELD_ID,statusOptionIds};
+    }
+    publisher = github.createPublisher({client, project, issueOf: async (run: string, task: string) => {
       const issue = (await store.getIssueNumbers(run))[task];
       if (issue === undefined) throw new Error(`No issue for ${task}`);
       return issue;
@@ -150,7 +159,7 @@ export async function compose(options: ComposeOptions): Promise<void> {
   }
   const gate = orchestration.createGate(sandboxes, {timeoutMs:120000});
   const recovery = orchestration.createRecovery({store, sandboxes, disk});
-  const app = dashboard.createDashboard({store}, {stopTask: (run: string, task: string) => recovery.requestStop(run,task)});
+  const app = dashboard.createDashboard({store}, {stopTask: (run: string, task: string) => recovery.requestStop(run,task)}, {projectUrl:process.env.GITHUB_PROJECT_URL});
   app.get('/delivery/:runId/report.md', async (context: any) => {
     if (context.req.param('runId') !== runId) return context.notFound();
     const report = await disk.read(`/delivery/${runId}/report.md`);
@@ -231,6 +240,8 @@ export async function compose(options: ComposeOptions): Promise<void> {
       await new Promise<void>((done, reject) => server.close(error => error ? reject(error) : done()));
       await Promise.allSettled([...sandboxIds].map(id => sandboxes.remove(id)));
       if (temporary) await rm(temporary,{recursive:true,force:true});
+    } else {
+      await Promise.allSettled([...sandboxIds].map(id => sandboxes.stop(id)));
     }
   }
 }

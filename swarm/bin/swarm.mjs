@@ -196,6 +196,13 @@ function ensureTaskWorktree(plan, task, fresh) {
     git(["worktree", "add", "-B", `task/${task.id}`, dir, parentBranch(task)]);
     base = git(["rev-parse", "HEAD"], { cwd: dir }).stdout.trim();
   }
+  // A merged task reopened for stretch work starts from the current, trusted
+  // parent tip. Otherwise old main changes are misattributed to the new task.
+  if (!fresh && prev.state === "merged") {
+    const parent = parentBranch(task);
+    git(["merge", "--no-edit", parent], { cwd: dir });
+    base = git(["rev-parse", parent]).stdout.trim();
+  }
   linkNodeModules(dir);
   return { dir, base };
 }
