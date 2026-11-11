@@ -1,0 +1,6 @@
+node_modules/
+.codex/
+.env
+.env.*
+*.log
+coverage/

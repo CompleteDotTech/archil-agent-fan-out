@@ -99,7 +99,9 @@ export async function startRun(input:{root:string;runId:string;presentationNow?:
         outputDir:directory});
     }
     record.status='completed';
-  } catch {
+  } catch (error) {
+    const cause=error as {name?:unknown;code?:unknown;status?:unknown;stack?:unknown};
+    await writeFile(join(directory,'failure.json'),JSON.stringify({name:typeof cause?.name==='string'?cause.name:'Error',code:typeof cause?.code==='string'&&/^[A-Z_0-9]+$/.test(cause.code)?cause.code:undefined,status:typeof cause?.status==='number'?cause.status:undefined,frames:typeof cause?.stack==='string'?cause.stack.split('\n').filter(line=>/^\s+at /.test(line)).slice(0,8):[]},null,2));
     record.status='failed'; record.failure='Execution failed; inspect preserved run evidence and logs. This run cannot be reused.';
   }
   record.endedAt=now().toISOString();

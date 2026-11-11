@@ -75,7 +75,7 @@ try {
   while ((Date.now() - started) / 1000 < maxSeconds) {
     const tick = Date.now();
     const capturedAt = new Date().toISOString();
-    const response = await fetch(new URL(`/api/runs/${encodeURIComponent(runId)}`, url));
+    const response = await fetch(new URL(`/api/runs/${encodeURIComponent(runId)}`, url), {signal:AbortSignal.timeout(30_000)});
     if (!response.ok) throw new Error(`Run snapshot HTTP ${response.status}`);
     const snapshot = await response.json();
     const summary = safeSnapshot(snapshot, capturedAt);

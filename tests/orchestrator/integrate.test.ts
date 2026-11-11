@@ -15,14 +15,14 @@ const manifest = (id: string): Manifest => ({
 const pr = (number: number) => ({ number, url: `https://github.com/local/demo/pull/${number}` });
 const success = { exitCode: 0, stdout: 'passed', stderr: '' };
 
-function setup(finalVerify = ['npm test', 'npm run typecheck'], timeoutMs?: number) {
+function setup(finalVerify = ['npm test', 'npm run typecheck'], timeoutMs?: number, deferRunDone?: boolean) {
   const store = new MemoryStore();
   const disk = new MemoryDisk();
   const publisher = new RecordingPublisher();
   const sandboxes = new LocalSandboxRunner();
   const exec = vi.spyOn(sandboxes, 'exec').mockResolvedValue(success);
   const ports = { store, disk, publisher, sandboxes };
-  return { ...ports, exec, integrator: createIntegrator(ports, { runId, integrationSandboxId: 'integration', finalVerify, timeoutMs }) };
+  return { ...ports, exec, integrator: createIntegrator(ports, { runId, integrationSandboxId: 'integration', finalVerify, timeoutMs, deferRunDone }) };
 }
 
 describe('sequential integrator', () => {
@@ -173,13 +173,15 @@ describe('delivery report', () => {
     expect(report).toContain('Final test result: **FAIL**');
     expect(report).toContain('PR: [#110](https://github.com/local/demo/pull/110)');
     expect(report).toContain('test failure');
+    expect((await store.listEvents(runId)).at(-1)?.event.type).toBe('report.written');
   });
 
   it('does not claim unexecuted tests passed', async () => {
-    const { integrator, disk } = setup();
+    const { integrator, disk, store } = setup();
     await integrator.idle();
     const report = await disk.read(await integrator.writeReport());
     expect(report).toContain('Final test result: **Not run**');
+    expect((await store.listEvents(runId)).at(-1)?.event.type).toBe('report.written');
   });
 
   it('links Radar evidence and matching receipts, and requires a final suite and gated merge', async () => {
@@ -216,8 +218,24 @@ describe('delivery report', () => {
     await event('integration.result',{pass:true,final:true,output:'all 9 target tests passed'});
     report = await disk.read(await integrator.writeReport());
     expect(report).toContain('Final test result: **PASS**');
+    expect(report).toContain('Delivery status: **incomplete**');
+    expect((await store.listEvents(runId)).at(-1)?.event.type).toBe('report.written');
+    await store.setTaskStatus(runId,'T4','done');
+    await integrator.writeReport();
+    expect((await store.listEvents(runId)).at(-1)?.event.type).toBe('run.done');
+    await store.setTaskStatus(runId,'T4','blocked');
+    await integrator.writeReport();
+    expect((await store.listEvents(runId)).at(-1)?.event.type).toBe('report.written');
     expect(report).toContain('Verified PR: [#42](https://github.com/local/demo/pull/42)');
     expect(report).toContain('all 9 target tests passed');
+  });
+
+  it('defers successful delivery notification until composition exports the app', async () => {
+    const {integrator,store}=setup(['npm test'],undefined,true);
+    integrator.enqueue(task('T1'),manifest('T1'),pr(100));
+    await integrator.writeReport();
+    expect((await store.listEvents(runId)).at(-1)?.event).toMatchObject({type:'report.written',data:{success:true}});
+    expect((await store.listEvents(runId)).some(item=>item.event.type==='run.done')).toBe(false);
   });
 
   it('does not accept a different run dataset or mismatched Radar receipt', async () => {

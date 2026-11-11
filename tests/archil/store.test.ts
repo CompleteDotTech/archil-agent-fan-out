@@ -1,8 +1,81 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createDatabase, type SQLiteDatabase } from '@archildata/sqlite';
+import type { Disk } from 'disk';
 import { FixturePlanner } from '../../src/contracts/fakes.js';
 import type { Attempt, Manifest, Plan, Store, SwarmEvent, TaskStatus } from '../../src/contracts/types.js';
-import { nodeSqliteDb, type Db } from '../../src/archil/db.js';
+import { archilDb, nodeSqliteDb, type Db } from '../../src/archil/db.js';
 import { createSqliteStore } from '../../src/archil/store.js';
+
+vi.mock('@archildata/sqlite', () => ({ createDatabase: vi.fn() }));
+
+describe('Archil SQLite operation queue', () => {
+  it('serializes writes, journal-capable reads and deferred transactions, then continues after rejection', async () => {
+    const started: string[] = [];
+    const releases: (() => void)[] = [];
+    let active = 0;
+    let peak = 0;
+    let individualTransactionExecutions = 0;
+    const failure = new Error('SDK operation failed');
+    const operation = (name: string): Promise<unknown> => {
+      started.push(name); active++; peak = Math.max(peak, active);
+      return new Promise((resolve, reject) => releases.push(() => {
+        active--;
+        if (name === 'fail') reject(failure);
+        else resolve(name === 'read' || name === 'after' ? [{ value: name }] : undefined);
+      }));
+    };
+    const sdk = {
+      write(strings: TemplateStringsArray) {
+        const name = strings.join('?');
+        const deferred = () => ({
+          name,
+          then(resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) {
+            if (name.startsWith('batch-')) individualTransactionExecutions++;
+            return operation(name).then(resolve, reject);
+          },
+        });
+        return { run: deferred, all: deferred };
+      },
+      transaction(operations: { name: string }[]) {
+        // Merely constructing transaction operations must not execute them.
+        expect(operations.map(item => item.name)).toEqual(['batch-one', 'batch-two']);
+        expect(individualTransactionExecutions).toBe(0);
+        return operation('transaction');
+      },
+    } as unknown as SQLiteDatabase;
+    vi.mocked(createDatabase).mockResolvedValueOnce(sdk);
+    const db = archilDb({ id: 'disk' } as Disk, 'state.sqlite');
+    const results = Promise.allSettled([
+      db.run('write'), db.all('read'), db.batch([{ sql: 'batch-one' }, { sql: 'batch-two' }]),
+      db.run('fail'), db.all('after'),
+    ]);
+    for (const name of ['write', 'read', 'transaction', 'fail', 'after']) {
+      await vi.waitFor(() => expect(started.at(-1)).toBe(name));
+      expect(active).toBe(1);
+      releases.shift()!();
+    }
+    expect(await results).toEqual([
+      { status: 'fulfilled', value: undefined },
+      { status: 'fulfilled', value: [{ value: 'read' }] },
+      { status: 'fulfilled', value: undefined },
+      { status: 'rejected', reason: failure },
+      { status: 'fulfilled', value: [{ value: 'after' }] },
+    ]);
+    expect(started).toEqual(['write', 'read', 'transaction', 'fail', 'after']);
+    expect(peak).toBe(1);
+    expect(individualTransactionExecutions).toBe(0);
+  });
+
+  it('retries failed database initialization without poisoning queued operations', async () => {
+    const failure = new Error('temporary initialization failure');
+    const sdk = { write: () => ({ all: () => Promise.resolve([{ value: 'recovered' }]) }) } as unknown as SQLiteDatabase;
+    vi.mocked(createDatabase).mockRejectedValueOnce(failure).mockResolvedValueOnce(sdk);
+    const db = archilDb({ id: 'disk' } as Disk, 'state.sqlite');
+    expect(await Promise.allSettled([db.run('first'), db.all('next')])).toEqual([
+      { status: 'rejected', reason: failure }, { status: 'fulfilled', value: [{ value: 'recovered' }] },
+    ]);
+  });
+});
 
 const startedAt = '2026-11-10T12:00:00.000Z';
 const deadlineAt = '2026-11-10T12:15:00.000Z';

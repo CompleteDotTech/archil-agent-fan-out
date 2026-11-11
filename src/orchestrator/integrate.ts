@@ -15,6 +15,8 @@ interface Options {
   integrationSandboxId: string;
   finalVerify: string[];
   timeoutMs?: number;
+  /** Composition emits delivery only after exporting the app and evidence. */
+  deferRunDone?: boolean;
 }
 
 type PullRequest = { number: number; url: string };
@@ -128,6 +130,11 @@ export function createIntegrator(ports: Ports, opts: Options): IntegratorHooks &
     ];
     const tasks = new Map((plan?.tasks ?? []).map(task => [task.id, task]));
     for (const entry of entries.values()) tasks.set(entry.task.id, entry.task);
+    const codingTasks = [...tasks.values()].filter(task => task.kind === 'task');
+    const delivered = finalResult === 'PASS' && (radarRaw
+      ? codingTasks.length > 0 && codingTasks.every(task => statuses[task.id] === 'done')
+      : !Object.values(statuses).includes('blocked'));
+    lines.push(`Delivery status: **${delivered ? 'complete' : 'incomplete'}**`, '');
     if (radarRaw) lines.push(...radarReport(radar, events, tasks));
     for (const task of tasks.values()) {
       const taskEvents = events.filter(item => item.taskId === task.id);
@@ -177,7 +184,7 @@ export function createIntegrator(ports: Ports, opts: Options): IntegratorHooks &
     }
     const path = `/delivery/${opts.runId}/report.md`;
     await ports.disk.write(path, lines.join('\n'));
-    await event('run.done', { reportPath: path });
+    await event(delivered && !opts.deferRunDone ? 'run.done' : 'report.written', { reportPath: path, success: delivered });
     return path;
   }
 

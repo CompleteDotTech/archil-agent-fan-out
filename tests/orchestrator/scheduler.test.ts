@@ -1,4 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { FixturePlanner, MemoryDisk, MemoryStore, PassGate, RecordingPublisher } from "../../src/contracts/fakes.js";
 import type {
   Attempt, Dispatch, ExecResult, Gate, IntegratorHooks, Manifest,
@@ -14,7 +18,7 @@ type SchedulerFactory = (ports: {
   now?: () => Date;
 }, opts: {
   concurrency: number; attemptTimeoutMs: number; baseCommit: string;
-  workerEnv: Record<string, string>; sandboxPool: string[]; pollMs?: number;
+  workerEnv: Record<string, string>; sandboxPool: string[]; pollMs?: number; workerScriptPath?: string;
 }) => { runUntilDone(runId: string): Promise<{ done: string[]; blocked: string[] }> };
 
 interface Execution {
@@ -69,7 +73,7 @@ async function eventually(predicate: () => boolean | Promise<boolean>): Promise<
   throw new Error("Scheduler did not reach the expected state within 100 poll intervals");
 }
 
-async function harness(options: { concurrency?: number; poolSize?: number; single?: boolean; gate?: Gate } = {}) {
+async function harness(options: { concurrency?: number; poolSize?: number; single?: boolean; gate?: Gate; workerScriptPath?: string } = {}) {
   const store = new MemoryStore();
   const disk = new MemoryDisk();
   const publisher = new RecordingPublisher();
@@ -95,6 +99,7 @@ async function harness(options: { concurrency?: number; poolSize?: number; singl
       concurrency: options.concurrency ?? 3, attemptTimeoutMs: 10_000,
       baseCommit, workerEnv: { AGENT: "fake", PUSH: "0" },
       sandboxPool: Array.from({ length: options.poolSize ?? 3 }, (_, i) => `sandbox-${i}`), pollMs: 1,
+      workerScriptPath: options.workerScriptPath,
     });
     let result: { done: string[]; blocked: string[] } | undefined;
     let failure: unknown;
@@ -227,7 +232,7 @@ describe("scheduler", () => {
   });
 
   it.each(["missing", "rejected"] as const)("recovers an exec with a %s manifest using the supplied dispatch", async (mode) => {
-    const h = await harness({ single: true });
+    const h = await harness({ single: true, workerScriptPath:'/mnt/archil/swarm/run-isolated/worker.sh' });
     const interrupted: Attempt[] = [];
     const recovery: RecoveryHooks = {
       async onInterrupted(attempt) {
@@ -248,10 +253,27 @@ describe("scheduler", () => {
     expect(interrupted).toHaveLength(1);
     expect(interrupted[0]).toMatchObject({ taskId: "T1", attemptId: "T1-a1" });
     expect(resumed.sandboxId).toBe(first.sandboxId);
+    expect(resumed.cmd).toBe(first.cmd);
+    expect(resumed.cmd).toContain('/swarm/run-isolated/worker.sh');
     expect(resumed.opts.env).toMatchObject({ ATTEMPT_ID: "T1-a2", RESUME: "1" });
     expect(h.integrations).toEqual([]);
     await h.complete(resumed);
     expect(await run.finish()).toEqual({ done: ["T1"], blocked: [] });
+  });
+
+  it('quotes a configured script path as one shell argument', async () => {
+    const directory = mkdtempSync(join(tmpdir(),'swarm-script-'));
+    const path = join(directory,"worker's $(printf substituted) script.sh");
+    writeFileSync(path,'printf scoped-script');
+    try {
+      const h=await harness({single:true,workerScriptPath:path});
+      const run=h.start();
+      await eventually(()=>h.sandboxes.executions.length===1);
+      const execution=h.sandboxes.executions[0]!;
+      expect(execFileSync('bash',['-c',execution.cmd],{encoding:'utf8'})).toBe('scoped-script');
+      await h.complete(execution);
+      expect(await run.finish()).toEqual({done:['T1'],blocked:[]});
+    } finally { rmSync(directory,{recursive:true,force:true}); }
   });
 
   it("blocks an interrupted task when recovery gives up", async () => {

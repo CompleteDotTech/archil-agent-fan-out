@@ -28,7 +28,7 @@ describe('orchestrator flow', () => {
       async stop(id) { stops.push(id); },
       async remove() {},
       async exec(sandboxId, cmd, opts) {
-        if (cmd !== 'bash /mnt/archil/swarm/worker/run-task.sh') {
+        if (!cmd.includes('/swarm/worker/run-task.sh')) {
           return { exitCode: 0, stdout: 'checks passed', stderr: '' };
         }
         const env = opts?.env ?? {};

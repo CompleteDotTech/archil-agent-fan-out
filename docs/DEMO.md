@@ -1,8 +1,10 @@
 # Hackathon Opportunity Radar demo
 
 This is the requested next demo, replacing the bookmark manager as the primary
-presentation concept. It is an implementation brief, not evidence that the new
-app, research agents or repeatable runs already exist. The legacy bookmark script
+presentation concept. It is the implementation specification. Current execution status and concrete
+evidence are recorded in [RADAR-EVIDENCE.md](RADAR-EVIDENCE.md); supported commands
+are in [RADAR-RUNBOOK.md](RADAR-RUNBOOK.md). The specification itself is not evidence
+that a run succeeded. The legacy bookmark script
 below remains available as a labeled fallback.
 
 ## Hackathon Opportunity Radar: implementation prompt

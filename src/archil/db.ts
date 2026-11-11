@@ -36,22 +36,35 @@ function template(sql: string, count: number): TemplateStringsArray {
 
 export function archilDb(disk: Disk, path: string): Db {
   let database: Promise<SQLiteDatabase> | undefined;
-  const getDatabase = () => database ??= createDatabase(disk, path);
+  const getDatabase = () => database ??= createDatabase(disk, path).catch(error => {
+    database = undefined;
+    throw error;
+  });
+  // Every SDK operation uses a writable directory checkout, including reads
+  // that can recover a journal. Serialize all of them through this one writer.
+  let pending: Promise<void> = Promise.resolve();
+  function enqueue<T>(operation: () => Promise<T>): Promise<T> {
+    const result = pending.then(operation);
+    pending = result.then(() => undefined, () => undefined);
+    return result;
+  }
 
   return {
     async run(sql, params = []) {
       const values = parameters(params);
       const strings = template(sql, values.length);
-      const db = await getDatabase();
-      await db.write(strings, ...values).run();
+      await enqueue(async () => {
+        const db = await getDatabase();
+        await db.write(strings, ...values).run();
+      });
     },
     async all<T>(sql: string, params: unknown[] = []): Promise<T[]> {
       const values = parameters(params);
       const strings = template(sql, values.length);
-      const db = await getDatabase();
-      // A read can need to recover a journal left by a concurrent writer.
-      // Use the writable directory checkout for this single-writer state DB.
-      return await db.write<T>(strings, ...values).all();
+      return enqueue(async () => {
+        const db = await getDatabase();
+        return await db.write<T>(strings, ...values).all();
+      });
     },
     async batch(stmts) {
       if (stmts.length === 0) return;
@@ -59,9 +72,11 @@ export function archilDb(disk: Disk, path: string): Db {
         const values = parameters(params);
         return { strings: template(sql, values.length), values };
       });
-      const db = await getDatabase();
-      // Operations must stay deferred until the SDK starts the transaction.
-      await db.transaction(prepared.map(({ strings, values }) => db.write(strings, ...values).run()));
+      await enqueue(async () => {
+        const db = await getDatabase();
+        // Operations must stay deferred until the SDK starts the transaction.
+        await db.transaction(prepared.map(({ strings, values }) => db.write(strings, ...values).run()));
+      });
     },
   };
 }

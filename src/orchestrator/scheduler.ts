@@ -23,6 +23,7 @@ export interface SchedulerOptions {
   workerEnv: Record<string, string>;
   sandboxPool: string[];
   pollMs?: number;
+  workerScriptPath?: string;
 }
 
 export function createScheduler(ports: SchedulerPorts, opts: SchedulerOptions): {
@@ -37,6 +38,9 @@ export function createScheduler(ports: SchedulerPorts, opts: SchedulerOptions): 
   const { store, publisher, sandboxes, disk } = ports;
   const now = ports.now ?? (() => new Date());
   const pool = [...new Set(opts.sandboxPool)];
+  const workerScriptPath = opts.workerScriptPath ?? '/mnt/archil/swarm/worker/run-task.sh';
+  if (!workerScriptPath || workerScriptPath.includes('\0')) throw new Error('Invalid worker script path');
+  const workerCommand = `bash '${workerScriptPath.replaceAll("'", "'\\''")}'`;
   const pause = () => new Promise<void>((resolve) => setTimeout(resolve, opts.pollMs ?? 25));
 
   async function event(runId: string, taskId: string, type: string,
@@ -99,7 +103,7 @@ export function createScheduler(ports: SchedulerPorts, opts: SchedulerOptions): 
       });
     };
     try {
-      await sandboxes.exec(attempt.sandboxId!, "bash /mnt/archil/swarm/worker/run-task.sh", {
+      await sandboxes.exec(attempt.sandboxId!, workerCommand, {
         env: { ...opts.workerEnv, RUN_ID: attempt.runId, TASK_ID: attempt.taskId,
           ATTEMPT_ID: attempt.attemptId, BASE_COMMIT: opts.baseCommit,
           RESUME: attempt.resume ? "1" : "0" },

@@ -134,20 +134,41 @@ export function createArchilSandboxRunner(options: ArchilSandboxRunnerOptions): 
       const template = await sdk.sandboxes.get(templateId);
       await runner.stop(templateId);
       const ids: string[] = [];
-      for (let index = 0; index < count; index++) {
-        const child = await template.fork();
-        const hasMount = child.mounts.some(mount =>
-          mount.path === "/mnt/archil" && mount.diskId === options.diskId && mount.conditional);
-        if (!hasMount) {
-          await child.stop();
-          await startSandbox(child, true);
-        } else if (!isRunning(child.status)) {
-          await startSandbox(child);
+      const children: ArchilSandboxLike[] = [];
+      try {
+        for (let index = 0; index < count; index++) {
+          const child = await template.fork();
+          // Register immediately: mount repair or startup can fail before the
+          // caller receives this child's ID and can take responsibility for it.
+          children.push(child);
+          const hasMount = child.mounts.some(mount =>
+            mount.path === "/mnt/archil" && mount.diskId === options.diskId && mount.conditional);
+          if (!hasMount) {
+            await child.stop();
+            await startSandbox(child, true);
+          } else if (!isRunning(child.status)) {
+            await startSandbox(child);
+          }
+          await configureTimeout(child);
+          ids.push(child.id);
         }
-        await configureTimeout(child);
-        ids.push(child.id);
+        return ids;
+      } catch (error) {
+        await Promise.all(children.map(async child => {
+          let stopped = false;
+          try { await child.stop(); stopped = true; } catch { /* Delete still gets a chance. */ }
+          interrupt(child.id);
+          try { await child.delete(); }
+          catch {
+            if (!stopped) {
+              // Do not log SDK errors, which may contain credentials. Logging
+              // must never replace the original failure either.
+              try { log(`Archil could not stop or delete failed fork ${child.id}.`); } catch { /* Preserve original error. */ }
+            }
+          }
+        }));
+        throw error;
       }
-      return ids;
     },
 
     exec(sandboxId, command, execOptions = {}) {

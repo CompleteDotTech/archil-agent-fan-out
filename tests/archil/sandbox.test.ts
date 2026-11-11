@@ -148,6 +148,50 @@ describe("Archil sandbox runner", () => {
     await expect(f.runner.fork("template", 1.5)).rejects.toThrow("count");
   });
 
+  it("cleans up an earlier child when the next fork fails and preserves the failure", async () => {
+    const f = fixture();
+    const first = f.makeBox("first");
+    const failure = new Error("fork quota reached");
+    vi.mocked(f.template.fork).mockResolvedValueOnce(first).mockRejectedValueOnce(failure);
+    await expect(f.runner.fork("template", 2)).rejects.toBe(failure);
+    expect(first.stop).toHaveBeenCalledOnce();
+    expect(first.delete).toHaveBeenCalledOnce();
+    expect(first.status).toBe("stopped");
+    expect(f.template.delete).not.toHaveBeenCalled();
+  });
+
+  it("includes the current child in cleanup if its mount repair start fails", async () => {
+    const f = fixture();
+    const first = f.makeBox("first");
+    const current = f.makeBox("current");
+    current.mounts = [];
+    const failure = new Error("start failed");
+    vi.mocked(current.start).mockRejectedValueOnce(failure);
+    vi.mocked(f.template.fork).mockResolvedValueOnce(first).mockResolvedValueOnce(current);
+    await expect(f.runner.fork("template", 2)).rejects.toBe(failure);
+    expect(current.start).toHaveBeenCalledWith({ mounts });
+    for (const child of [first, current]) {
+      expect(child.stop).toHaveBeenCalled();
+      expect(child.delete).toHaveBeenCalledOnce();
+      expect(child.status).toBe("stopped");
+    }
+  });
+
+  it("attempts every cleanup despite failures and leaves undeletable children safely stopped", async () => {
+    const f = fixture();
+    const first = f.makeBox("first");
+    const second = f.makeBox("second");
+    const failure = new Error("third fork failed");
+    vi.mocked(first.stop).mockRejectedValueOnce(new Error("stop unavailable"));
+    vi.mocked(second.delete).mockRejectedValueOnce(new Error("delete unavailable"));
+    vi.mocked(f.template.fork).mockResolvedValueOnce(first).mockResolvedValueOnce(second).mockRejectedValueOnce(failure);
+    await expect(f.runner.fork("template", 3)).rejects.toBe(failure);
+    expect(first.delete).toHaveBeenCalledOnce();
+    expect(second.stop).toHaveBeenCalledOnce();
+    expect(second.status).toBe("stopped");
+    expect(second.delete).toHaveBeenCalledOnce();
+  });
+
   it("streams both output channels and returns nonzero exits as results", async () => {
     const f = fixture();
     const disk = new MemoryDisk();

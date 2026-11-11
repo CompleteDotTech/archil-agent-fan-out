@@ -167,6 +167,7 @@ export async function compose(options: ComposeOptions): Promise<void> {
     await writeFile(join(outputDir,'events.json'),JSON.stringify(await store.listEvents(runId),null,2));
   }
   const sandboxIds = new Set<string>();
+  const workerScript = `/mnt/archil/swarm/${runId}/worker/run-task.sh`;
   let phase = 'publishing plan';
   try {
   const issues = await publisher.publishPlan(plan);
@@ -182,7 +183,7 @@ export async function compose(options: ComposeOptions): Promise<void> {
       }});
     await store.appendEvent({runId,at:new Date().toISOString(),type:'research.dataset',data:{datasetId:dataset.datasetId,eventCount:dataset.events.length,path:`/research/${runId}/dataset.json`,researchMode:dataset.researchMode,shortfall:dataset.shortfall}});
     await writeFile(join(outputDir,'dataset.json'),JSON.stringify(dataset,null,2));
-    if (!options.local && (dataset.events.length < 5 || dataset.roles.some(role => role.status !== 'complete'))) {
+    if (!options.local && (dataset.events.length < 5 || dataset.roles.some(role => role.status !== 'complete') || dataset.events.some(event => !dataset.findings.some(finding => finding.eventId === event.id)))) {
       await preserveEvidence();
       throw new Error(`Research preflight incomplete: ${dataset.events.length}/5 events; inspect preserved evidence`);
     }
@@ -192,7 +193,7 @@ export async function compose(options: ComposeOptions): Promise<void> {
   }
   if (options.fakeAgent) await uploadTree(disk, options.radar ? 'fixtures/radar-agent':'fixtures/agent', `/swarm/fixtures/${runId}`);
   workerEnv.FIXTURE_ROOT = `swarm/fixtures/${runId}`;
-  await disk.write('/swarm/worker/run-task.sh', await readFile('src/worker/run-task.sh', 'utf8'));
+  await disk.write(`/swarm/${runId}/worker/run-task.sh`, await readFile('src/worker/run-task.sh', 'utf8'));
   await disk.write(`/spec/${runId}/plan.json`, JSON.stringify(plan, null, 2));
   const architecture = plan.tasks.find(task => task.kind === 'task' && task.dependsOn.length === 0);
   if (!architecture) throw new Error('Plan has no architecture task');
@@ -230,9 +231,15 @@ export async function compose(options: ComposeOptions): Promise<void> {
     });
     await emit('task.status',{status:'running'});
     await emit('attempt.started',{attemptId,sandboxId:prepared.templateId,resume:false});
-    await sandboxes.exec(prepared.templateId, 'bash /mnt/archil/swarm/worker/run-task.sh', {env:{...workerEnv,
+    let lastArchitectureLog = 0;
+    let architectureLogs = Promise.resolve();
+    await sandboxes.exec(prepared.templateId, `bash ${quote(workerScript)}`,  {env:{...workerEnv,
       RUN_ID:runId,TASK_ID:architecture.id,ATTEMPT_ID:attemptId,BASE_COMMIT:prepared.baseCommit,RESUME:'0'},timeoutMs:900000,
-      onOutput: (line: string) => { void emit('agent.log',{line}).catch(() => {}); }});
+      onOutput: (line: string) => {
+        const now=Date.now(); if(now-lastArchitectureLog<500)return; lastArchitectureLog=now;
+        architectureLogs=architectureLogs.then(()=>emit('agent.log',{line:line.slice(-8000)})).catch(()=>{});
+      }});
+    await architectureLogs;
     const text = await disk.read(`${taskPath}/manifest.json`);
     if (!text) throw new Error('Architecture worker did not produce a manifest');
     const manifest = JSON.parse(text) as Manifest;
@@ -263,7 +270,10 @@ export async function compose(options: ComposeOptions): Promise<void> {
     await emit('task.status',{status:'done'});
     await sandboxes.stop(prepared.templateId);
     const forkStart = Date.now();
+    const forkStarted=Date.now();
     const [integrationId, ...pool] = await sandboxes.fork(prepared.templateId, 4);
+    await store.appendEvent({runId,at:new Date().toISOString(),type:'sandbox.forked',data:{n:pool.length,ms:Date.now()-forkStarted,templateId:prepared.templateId,integrationId,workers:pool}});
+    await disk.write(`/spec/${runId}/sandboxes.json`,JSON.stringify({templateId:prepared.templateId,integrationId,workers:pool},null,2));
     await emit('sandbox.forked',{templateId:prepared.templateId,sandboxIds:[integrationId,...pool],ms:Date.now()-forkStart});
     for (const id of [integrationId,...pool]) sandboxIds.add(id);
     dryIntegrationId = integrationId;
@@ -277,10 +287,10 @@ export async function compose(options: ComposeOptions): Promise<void> {
     }) : sandboxes;
     const finalVerify = ['npm run typecheck'];
     const integrator = orchestration.createIntegrator({publisher,store,sandboxes:integrationRunner,disk}, {
-      runId,integrationSandboxId:integrationId,finalVerify,
+      runId,integrationSandboxId:integrationId,finalVerify,deferRunDone:true,
     });
     const scheduler = orchestration.createScheduler({store,publisher,sandboxes,gate,disk,recovery,integrator}, {
-      concurrency:3,attemptTimeoutMs:900000,baseCommit:workerBaseCommit,workerEnv,sandboxPool:pool,pollMs:50,
+      concurrency:3,attemptTimeoutMs:900000,baseCommit:workerBaseCommit,workerEnv,sandboxPool:pool,pollMs:50,workerScriptPath:workerScript,
     });
     phase = 'parallel coding and PR integration';
     const outcome = await scheduler.runUntilDone(runId);
@@ -299,14 +309,14 @@ export async function compose(options: ComposeOptions): Promise<void> {
       await store.appendEvent({runId,taskId:epic.id,at:new Date().toISOString(),type:'task.status',data:{status:success ? 'done' : 'blocked'}});
     }
     const reportPath = await integrator.writeReport();
-    await store.appendEvent({runId,at:new Date().toISOString(),type:'run.done',data:{reportPath}});
     console.log(`Done: ${outcome.done.join(', ')}; blocked: ${outcome.blocked.join(', ') || 'none'}`);
     console.log(`Report: ${reportPath}`);
     await preserveEvidence();
     if (localMerge) { await runFile('cp',['-R',localMerge,join(outputDir,'app')]); }
     else {
       const archive = await sandboxes.exec(integrationId, 'cd /repo && tar --exclude=node_modules --exclude=.git -czf /tmp/radar-app.tgz . && base64 -w0 /tmp/radar-app.tgz',{timeoutMs:120000});
-      if (archive.exitCode === 0) await writeFile(join(outputDir,'app.tgz'),Buffer.from(archive.stdout.trim(),'base64'));
+      if (archive.exitCode !== 0 || !archive.stdout.trim()) throw new Error('Delivered app archive failed');
+      await writeFile(join(outputDir,'app.tgz'),Buffer.from(archive.stdout.trim(),'base64'));
     }
     if (temporary) {
       const localReport = resolve('.swarm','runs',runId,'report.md');
@@ -317,20 +327,20 @@ export async function compose(options: ComposeOptions): Promise<void> {
     console.log(`Final acceptance suite: ${finalCheck.exitCode === 0 ? 'PASS' : 'FAIL'}`);
     if (outcome.blocked.length) throw new Error('Run has blocked tasks');
     if (finalCheck.exitCode !== 0) throw new Error('Final acceptance suite failed');
+    await store.appendEvent({runId,at:new Date().toISOString(),type:'run.done',data:{reportPath}});
   } catch (error) {
     await store.appendEvent({runId,at:new Date().toISOString(),type:'run.failed',data:{phase,errorType:error instanceof Error ? error.name:'Error'}});
     console.error(`Run failed during ${phase}`);
     throw error;
   } finally {
     await preserveEvidence().catch(() => console.warn('Evidence export incomplete; use scripts/radar-export.ts to retry.'));
-    if (options.radar) await new Promise<void>(done => server.close(() => done()));
-    if (options.local) {
-      if (!options.radar) await new Promise<void>((done, reject) => server.close(error => error ? reject(error) : done()));
-      await Promise.allSettled([...sandboxIds].map(id => sandboxes.remove(id)));
-      if (temporary) await rm(temporary,{recursive:true,force:true});
-    } else {
-      await Promise.allSettled([...sandboxIds].map(id => sandboxes.stop(id)));
+    await Promise.allSettled([...sandboxIds].map(id => options.local ? sandboxes.remove(id) : sandboxes.stop(id)));
+    if (options.radar || options.local) {
+      const closed = new Promise<void>(done => server.close(() => done()));
+      (server as typeof server & {closeAllConnections?:()=>void}).closeAllConnections?.();
+      await closed;
     }
+    if (temporary) await rm(temporary,{recursive:true,force:true});
   }
 }
 
@@ -376,7 +386,7 @@ class LocalRunner extends LocalSandboxRunner {
     const repo = this.directory(id);
     const translated = cmd.replaceAll('/mnt/archil', this.disk.root).replaceAll('/repo', repo);
     const result = await super.exec(id, translated, { ...opts, env: { ...process.env, ...opts?.env, REPO_DIR: repo, DISK: this.disk.root } as Record<string,string> });
-    if (result.exitCode === 0 && cmd.includes('/swarm/worker/run-task.sh')) {
+    if (result.exitCode === 0 && cmd.includes('/worker/run-task.sh')) {
       const pushed = await super.exec(id, 'git push origin HEAD', {timeoutMs:30000});
       if (pushed.exitCode !== 0) throw new Error(`Local branch push failed: ${pushed.stderr}`);
     }

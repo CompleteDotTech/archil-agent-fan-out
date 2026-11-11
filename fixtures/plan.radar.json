@@ -37,7 +37,7 @@
         "npx vitest run tests/architecture.test.ts"
       ],
       "research": [],
-      "prompt": "Architecture-first: read data/research.json and establish contracts, stub modules and meaningful acceptance tests. Never use network or change package.json. Parallel siblings must implement against these exact interfaces. Do not implement sibling modules yet. Include lazy routing so API tests do not initialize UI or filters unless needed. Document run-scoped localStorage key radar:<runId>:shortlist. Tests may be red until siblings merge but typecheck and architecture test must pass."
+      "prompt": "Architecture-first: read data/research.json and establish contracts, stub modules and meaningful acceptance tests. Never use network or change package.json. Parallel siblings must implement against these exact interfaces. Do not implement sibling modules yet. Include lazy routing so API tests do not initialize UI or filters unless needed. Document run-scoped localStorage key radar:<runId>:shortlist. Tests may be red until siblings merge but typecheck and architecture test must pass. Keep the scaffold bounded: at most 12 meaningful acceptance tests total, not an exhaustive matrix. Do not commit or stage node_modules; the seed .gitignore excludes dependencies."
     },
     {
       "id": "T2",
@@ -81,7 +81,8 @@
         "Show five dataset events (or explicit source shortfall), name/officialURL, verified location/dates/deadline/timezone/eligibility/prizes/judging/deliverables with claim-specific links and retrieval timestamps. Unknown/conflicting stay visible, do not invent facts.",
         "Filters mode/eligibility/after and saved-only; readable event detail and separate evidence view. IDs mode,eligibility,after,saved,cards,detail,evidence.",
         "Export createShortlist(storage,runId) from public/shortlist.js, methods toggle(id):boolean,has(id),values(). localStorage radar:<runId>:shortlist; tolerate corrupt/blocked storage, preserve reload and isolate runs.",
-        "Use API contract, escape data before DOM insertion, visibly label dataset run/research mode."
+        "Use API contract, escape data before DOM insertion, visibly label dataset run/research mode.",
+        "Eligibility labels are categories, not a determination that a specific user qualifies; point to official restrictions."
       ],
       "verify": [
         "npm run typecheck",
