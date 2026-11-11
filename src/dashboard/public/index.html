@@ -6,7 +6,7 @@
 <title>Archil · Agent swarm</title>
 <style>
 :root{color-scheme:dark;--bg:#0b1220;--panel:#131f32;--line:#34455e;--text:#f3f7ff;--muted:#bdcbe0;--accent:#80d8ff;--green:#90edb2;--red:#ffb4ab}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:18px/1.5 system-ui,sans-serif}main{max-width:1600px;margin:auto;padding:36px}header{display:flex;justify-content:space-between;align-items:center;gap:24px;flex-wrap:wrap;margin-bottom:28px}h1{font-size:clamp(30px,4vw,48px);line-height:1.15;margin:6px 0;overflow-wrap:anywhere}h2{font-size:24px;margin:0}.eyebrow{color:var(--accent);font-weight:750;letter-spacing:.12em;font-size:14px;text-transform:uppercase}.muted{color:var(--muted)}a{color:var(--accent);text-underline-offset:4px}a:hover{color:white}button,.link-button{font:inherit;font-weight:650;border:1px solid var(--line);border-radius:8px;padding:10px 16px;background:#20324b;color:var(--text);cursor:pointer}button:hover,.link-button:hover{background:#314966}button:disabled{opacity:.6;cursor:wait}button:focus-visible,a:focus-visible,pre:focus-visible{outline:3px solid var(--accent);outline-offset:4px}.links{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.link-button{text-decoration:none}.connection{display:inline-flex;align-items:center;gap:8px;font-size:16px;color:var(--muted)}.connection:before{content:"";width:10px;height:10px;background:currentColor;border-radius:50%}.connection.live{color:var(--green)}.connection.error{color:var(--red)}.summary{display:flex;gap:24px;flex-wrap:wrap;margin:0 0 24px}.metric{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 22px;min-width:140px}.metric strong{font-size:30px;display:block}.metric span{color:var(--muted);font-size:16px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:24px}.panel-heading{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;padding:20px 24px;border-bottom:1px solid var(--line)}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;text-align:left;white-space:nowrap}th{font-size:14px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:#101a2a}td,th{padding:16px 20px;border-bottom:1px solid var(--line)}tbody tr:last-child td{border-bottom:0}tbody tr.selected{background:#1e3650}td.title{white-space:normal;min-width:240px;max-width:520px}.task-select{color:var(--accent);padding:4px 0;background:transparent;border:0;text-align:left}.task-select:hover{background:transparent;color:white;text-decoration:underline}.pill{display:inline-block;border-radius:99px;padding:4px 12px;font-size:15px;font-weight:750;border:1px solid currentColor;text-transform:capitalize}.backlog{color:#cbd5e1}.ready{color:#b8b6ff}.running{color:#80d8ff}.review{color:#ffdb8a}.done{color:var(--green)}.blocked{color:var(--red)}.stop{background:#48262e;border-color:#b26973;color:#ffe2e5}.stop:hover{background:#68313e}.attempt-note{font-size:13px;display:block;color:var(--muted)}#notice{padding:14px 18px;margin:0 0 20px;border-left:4px solid var(--accent);background:var(--panel);overflow-wrap:anywhere}#notice.error{border-color:var(--red);color:var(--red)}#logs{margin:0;padding:24px;min-height:260px;max-height:520px;overflow:auto;font:16px/1.65 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;background:#080f1b;color:#e0edff}#log-count{font-size:15px;color:var(--muted)}footer{color:var(--muted);font-size:15px}#headline{font-size:clamp(28px,3.2vw,44px);line-height:1.2;font-weight:750;margin:0 0 20px}.proof{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:16px;margin:0 0 24px}.proof .metric{min-width:0}.proof strong{font-size:34px}.proof small{display:block;color:var(--muted);font-size:16px}@media(max-width:900px){.proof{grid-template-columns:repeat(2,minmax(0,1fr))}}[hidden]{display:none!important}@media(max-width:700px){main{padding:20px 12px}.panel-heading{padding:16px}td,th{padding:12px}.summary{gap:10px}.metric{min-width:100px;flex:1;padding:10px 14px}#logs{padding:16px}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:18px/1.5 system-ui,sans-serif}main{max-width:1600px;margin:auto;padding:36px}header{display:flex;justify-content:space-between;align-items:center;gap:24px;flex-wrap:wrap;margin-bottom:28px}h1{font-size:clamp(30px,4vw,48px);line-height:1.15;margin:6px 0;overflow-wrap:anywhere}h2{font-size:24px;margin:0}.eyebrow{color:var(--accent);font-weight:750;letter-spacing:.12em;font-size:14px;text-transform:uppercase}.muted{color:var(--muted)}a{color:var(--accent);text-underline-offset:4px}a:hover{color:white}button,.link-button{font:inherit;font-weight:650;border:1px solid var(--line);border-radius:8px;padding:10px 16px;background:#20324b;color:var(--text);cursor:pointer}button:hover,.link-button:hover{background:#314966}button:disabled{opacity:.6;cursor:wait}button:focus-visible,a:focus-visible,pre:focus-visible{outline:3px solid var(--accent);outline-offset:4px}.links{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.link-button{text-decoration:none}.connection{display:inline-flex;align-items:center;gap:8px;font-size:16px;color:var(--muted)}.connection:before{content:"";width:10px;height:10px;background:currentColor;border-radius:50%}.connection.live{color:var(--green)}.connection.error{color:var(--red)}.summary{display:flex;gap:24px;flex-wrap:wrap;margin:0 0 24px}.metric{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 22px;min-width:140px}.metric strong{font-size:30px;display:block}.metric span{color:var(--muted);font-size:16px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:24px}.panel-heading{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;padding:20px 24px;border-bottom:1px solid var(--line)}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;text-align:left;white-space:nowrap}th{font-size:14px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:#101a2a}td,th{padding:16px 20px;border-bottom:1px solid var(--line)}tbody tr:last-child td{border-bottom:0}tbody tr.selected{background:#1e3650}td.title{white-space:normal;min-width:240px;max-width:520px}.task-select{color:var(--accent);padding:4px 0;background:transparent;border:0;text-align:left}.task-select:hover{background:transparent;color:white;text-decoration:underline}.pill{display:inline-block;border-radius:99px;padding:4px 12px;font-size:15px;font-weight:750;border:1px solid currentColor;text-transform:capitalize}.backlog{color:#cbd5e1}.ready{color:#b8b6ff}.running{color:#80d8ff}.review{color:#ffdb8a}.done{color:var(--green)}.blocked{color:var(--red)}.stop{background:#48262e;border-color:#b26973;color:#ffe2e5}.stop:hover{background:#68313e}.attempt-note{font-size:13px;display:block;color:var(--muted)}#notice{padding:14px 18px;margin:0 0 20px;border-left:4px solid var(--accent);background:var(--panel);overflow-wrap:anywhere}#notice.error{border-color:var(--red);color:var(--red)}#logs{margin:0;padding:24px;min-height:260px;max-height:520px;overflow:auto;font:16px/1.65 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;background:#080f1b;color:#e0edff}#log-count{font-size:15px;color:var(--muted)}footer{color:var(--muted);font-size:15px}#headline{font-size:clamp(28px,3.2vw,44px);line-height:1.2;font-weight:750;margin:0 0 20px}.proof{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:16px;margin:0 0 24px}.proof .metric{min-width:0}.proof strong{font-size:34px}.proof small{display:block;color:var(--muted);font-size:16px}@media(max-width:900px){.proof{grid-template-columns:repeat(2,minmax(0,1fr))}}.swarm{display:grid;grid-template-columns:220px 40px 1fr 40px 220px;align-items:center;gap:8px;margin:0 0 24px}.swarm-head{display:flex;justify-content:space-between;align-items:baseline;gap:16px;flex-wrap:wrap;margin:0 0 12px}.swarm-head h2{font-size:28px}.swarm-count{font-size:22px;color:var(--accent);font-weight:750}.arrow{font-size:32px;color:var(--muted);text-align:center}.agents{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}.card{background:var(--panel);border:2px solid var(--line);border-radius:12px;padding:14px 16px;cursor:pointer;min-width:0;text-align:left;color:var(--text);font:inherit}.card:hover{border-color:var(--accent)}.card.sel{border-color:var(--accent);background:#1a2c45}.card.running{border-color:#3f7fa3}.card.done{border-color:#3f8a5c}.card.blocked{border-color:#a3555c}.card h3{margin:0 0 6px;font-size:19px;line-height:1.3}.card .meta{font:15px/1.5 ui-monospace,monospace;color:var(--muted)}.card .last{font:15px/1.5 ui-monospace,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:8px 0;color:#dbe8ff}.card .row{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}.card .badge{font-weight:750}.card.running .badge{color:var(--accent)}.card.done .badge{color:var(--green)}.card.blocked .badge{color:var(--red)}.pulse{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--accent);margin-right:6px;animation:p 1.2s infinite}@keyframes p{50%{opacity:.25}}@media(max-width:1000px){.swarm{grid-template-columns:1fr}.arrow{transform:rotate(90deg)}}[hidden]{display:none!important}@media(max-width:700px){main{padding:20px 12px}.panel-heading{padding:16px}td,th{padding:12px}.summary{gap:10px}.metric{min-width:100px;flex:1;padding:10px 14px}#logs{padding:16px}}
 </style>
 </head>
 <body>
@@ -18,6 +18,7 @@
 <p id="notice" role="status" hidden></p>
 <p id="headline" role="status">Waiting for the plan…</p>
 <section class="proof" aria-label="Proof of work"><div class="metric"><span>Forked</span><strong id="p-forked">—</strong><small id="p-forked-d">sandboxes from one template</small></div><div class="metric"><span>Keenable sources</span><strong id="p-sources">—</strong><small>cited into workers</small></div><div class="metric"><span>Gates passed</span><strong id="p-gates">—</strong><small>verify + ownership</small></div><div class="metric"><span>PRs merged</span><strong id="p-prs">—</strong><small id="p-prs-d">into main</small></div><div class="metric"><span>Recoveries</span><strong id="p-rec">—</strong><small id="p-rec-d">stopped, resumed in place</small></div></section>
+<section aria-labelledby="swarm-heading"><div class="swarm-head"><h2 id="swarm-heading">Agent swarm</h2><span id="swarm-count" class="swarm-count">Waiting for the plan…</span></div><div class="swarm"><div id="swarm-template"></div><div class="arrow" aria-hidden="true">→</div><div id="swarm-agents" class="agents"></div><div class="arrow" aria-hidden="true">→</div><div id="swarm-merge"></div></div></section>
 <p id="run-mode" class="muted">Execution mode will appear when recorded by the orchestrator.</p>
 <section class="panel" aria-labelledby="research-heading"><div class="panel-heading"><div><h2 id="research-heading">Research agents · Keenable preflight</h2><span class="muted">Discovery first, then requirements and comparison. Coding begins after validated consolidation.</span></div><a id="dataset" target="_blank" rel="noopener noreferrer" hidden>Consolidated dataset ↗</a></div><div class="table-wrap"><table><thead><tr><th>Research role</th><th>State</th><th>Findings</th><th>Evidence</th></tr></thead><tbody id="research-roles"></tbody></table></div><p id="research-summary" style="padding:0 24px">No research role executions recorded.</p></section>
 
@@ -192,7 +193,59 @@
     $('running').textContent = String(counts.running);
     $('completed').textContent = String(counts.done);
     $('blocked').textContent = String(counts.blocked);
-    renderResearch(); renderTrace(); void loadDataset(); renderProof(counts);
+    renderResearch(); renderTrace(); void loadDataset(); renderProof(counts); renderSwarm();
+  }
+  function short(id) { return id ? '…' + String(id).slice(-6) : 'not assigned'; }
+  function agentCard(task, opts = {}) {
+    const status = statuses.has(state.statuses[task.id]) ? state.statuses[task.id] : 'backlog';
+    const attempt = state.attempts.get(task.id);
+    const card = document.createElement('div');
+    card.className = 'card ' + status + (state.selected === task.id ? ' sel' : '');
+    card.tabIndex = 0; card.setAttribute('role', 'button');
+    card.setAttribute('aria-label', 'Show log for ' + task.id);
+    card.onclick = () => { state.selected = task.id; renderTasks(); renderLog(); };
+    const h = document.createElement('h3'); h.textContent = task.id + ' · ' + task.title; card.append(h);
+    const row = document.createElement('div'); row.className = 'row';
+    const badge = document.createElement('span'); badge.className = 'badge';
+    const icon = { running: '', done: '✓ ', blocked: '✗ ', review: '… ', ready: '◌ ', backlog: '◌ ' }[status] || '';
+    if (status === 'running') { const dot = document.createElement('span'); dot.className = 'pulse'; badge.append(dot); }
+    badge.append(icon + (attempt?.resume && status === 'running' ? 'resumed' : attempt?.state === 'interrupted' ? 'stopped, resuming' : status));
+    row.append(badge);
+    if (opts.stop && task.kind === 'task' && status === 'running' && task.dependsOn.length > 0) {
+      const b = document.createElement('button'); b.className = 'stop';
+      b.textContent = state.pending.has(task.id) ? 'Stopping…' : 'Stop'; b.disabled = state.pending.has(task.id);
+      b.onclick = e => { e.stopPropagation(); stopTask(task.id); }; row.append(b);
+    }
+    card.append(row);
+    const meta = document.createElement('div'); meta.className = 'meta';
+    meta.textContent = 'sandbox ' + short(attempt?.sandboxId) + ' · attempt ' + (attempt?.n || '—'); card.append(meta);
+    const lines = state.logs.get(task.id) || [];
+    const last = document.createElement('div'); last.className = 'last';
+    last.textContent = lines.length ? '› ' + lines[lines.length - 1] : '› waiting…'; card.append(last);
+    const foot = document.createElement('div'); foot.className = 'meta';
+    const pr = state.prs.get(task.id); const src = state.sources.get(task.id);
+    foot.textContent = [src ? src + ' sources' : '', pr ? 'PR #' + pr.number + (pr.merged ? ' merged' : ' open') : ''].filter(Boolean).join(' · ') || ' ';
+    card.append(foot);
+    return card;
+  }
+  function renderSwarm() {
+    const work = state.tasks.filter(t => t.kind === 'task');
+    const root = work.find(t => !t.dependsOn?.length);
+    const workers = work.filter(t => t.dependsOn?.length);
+    const live = workers.filter(t => state.statuses[t.id] === 'running').length;
+    const sandboxes = new Set(workers.map(t => state.attempts.get(t.id)?.sandboxId).filter(Boolean));
+    $('swarm-count').textContent = workers.length
+      ? workers.length + ' agents distributed · ' + live + ' running now · ' + sandboxes.size + ' Archil sandboxes' + (state.fork ? ' (forked ' + state.fork.n + ' in ' + (state.fork.ms / 1000).toFixed(1) + ' s)' : '')
+      : 'Waiting for the plan…';
+    const t = $('swarm-template'); t.replaceChildren();
+    if (root) { const c = agentCard(root); const n = document.createElement('div'); n.className = 'meta'; n.textContent = state.fork ? 'template → forked ×' + state.fork.n : 'template · forks after this'; c.append(n); t.append(c); }
+    const a = $('swarm-agents'); a.replaceChildren(...workers.map(w => agentCard(w, { stop: true })));
+    const m = $('swarm-merge'); m.replaceChildren();
+    const mc = document.createElement('div'); mc.className = 'card' + (state.final ? (state.final.pass ? ' done' : ' blocked') : '');
+    const mh = document.createElement('h3'); mh.textContent = 'Merge + test'; mc.append(mh);
+    for (const [id, pr] of state.prs) { const d = document.createElement('div'); d.className = 'meta'; d.textContent = '#' + pr.number + ' ' + id + (pr.merged ? ' ✓ merged' : ' · waiting'); mc.append(d); }
+    const f = document.createElement('div'); f.className = 'badge'; f.textContent = state.final ? 'npm test ' + (state.final.pass ? '✓ passed' : '✗ failed') : 'npm test · pending'; mc.append(f);
+    m.append(mc);
   }
   function renderProof(counts) {
     const root = state.tasks.find(task => task.kind === 'task' && !task.dependsOn?.length);
@@ -227,6 +280,8 @@
     } catch (error) { notice('Could not stop ' + taskId + ': ' + error.message, true); }
     finally { state.pending.delete(taskId); renderTasks(); }
   }
+  let swarmTimer = 0;
+  function scheduleSwarm() { if (!swarmTimer) swarmTimer = setTimeout(() => { swarmTimer = 0; renderSwarm(); }, 300); }
   function applyEvent(item, repaint = true) {
     const event = item.event || item;
     if (!event || event.runId !== runId || typeof event.type !== 'string') return;
@@ -303,7 +358,7 @@
     }
     if (repaint) {
       if (event.type !== 'agent.log') renderTasks();
-      if (event.type === 'agent.log' && id === state.selected) renderLog();
+      if (event.type === 'agent.log') { scheduleSwarm(); if (id === state.selected) renderLog(); }
     }
   }
   async function refresh() {
