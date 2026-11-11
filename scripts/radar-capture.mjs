@@ -88,7 +88,7 @@ try {
     report.frames++;
     await writeFile(path.join(output, 'capture.json'), JSON.stringify(report, null, 2) + '\n');
     if (report.frames === 1 || report.frames % 15 === 0) console.log(JSON.stringify({ capturedAt, runId, frames: report.frames, statuses: snapshot.statuses }));
-    if (summary.evidence.some(item => item.type === 'run.done')) { report.stopReason = 'Observed run.done event'; break; }
+    if (summary.evidence.some(item => ['run.done','run.failed'].includes(item.type))) { report.stopReason = 'Observed terminal run event'; break; }
     await sleep(Math.max(0, 2000 - (Date.now() - tick)));
   }
   report.stopReason ??= 'Maximum capture duration reached; no completion inferred';

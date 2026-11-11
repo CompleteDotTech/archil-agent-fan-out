@@ -6,6 +6,8 @@ This procedure separates preparation, execution, and evidence. A prepared judges
 
 Run from the swarm repository with Node 22.19+, installed dependencies, `git`, and `gh`. The ignored `.env` supplies `ARCHIL_API_KEY`, `ARCHIL_DISK_ID`, `ARCHIL_REGION`, `GITHUB_TOKEN`, `GITHUB_PUSH_TOKEN`, and `OPENAI_API_KEY`. `KEENABLE_API_KEY` is optional; the adapter can use Keenable's public endpoints. Never print this file. The CLI loads it and makes `GITHUB_TOKEN` available to `gh` through `GH_TOKEN` without printing either value.
 
+Environment variables take precedence; `.env` fills missing names. This session’s supplied GitHub tokens do not cover newly created targets. A working stored GitHub CLI login was verified: add `--github-cli-auth` to `seed` and `start` to use it explicitly in memory without changing `.env`.
+
 The GitHub token must create a private disposable target repository under the requested owner and publish issues/PRs; the worker push token must access that target. Confirm applicable Archil concurrency limits before running. The architecture phase precedes three coding workers; research is an orchestrator preflight, not concurrent research inside coding sandboxes.
 
 Verify local code with `npm run typecheck` and `npm test`. Check provider access with `node --env-file=.env --import tsx scripts/smoke.ts`; this creates and cleans up smoke infrastructure and does not count as a Radar execution.
@@ -38,6 +40,17 @@ The dashboard URL is printed when the run begins. It shows the run ID and role/w
 - `app.tgz`: preserved delivered application, excluding dependencies and Git metadata.
 
 All paths above are beneath `.swarm/radar/REHEARSAL_ID/`. These ignored artifacts are local exhibits; preserve them with the recording and do not delete them to prepare another run. The application also remains in the target repository. An unsuccessful run is retained as `failed` and cannot be restarted under the same ID; prepare a new isolated run after repairing the cause.
+
+Serve the preserved delivery without keeping cloud compute running:
+
+```bash
+node --import tsx scripts/radar-serve.ts --run REHEARSAL_ID --port 3200
+node scripts/radar-browser.mjs http://127.0.0.1:3200 .swarm/radar/REHEARSAL_ID/browser --record-seconds 180 --dashboard 'http://127.0.0.1:3200/engineering?run=REHEARSAL_ID'
+```
+
+The browser command writes a silent three-minute walkthrough, screenshot evidence, behavioral QA, and a complete video decode check. It does not claim a narrated talk or a judges execution. The `/engineering` view is explicitly recorded evidence. For actual activity use `scripts/radar-capture.mjs LIVE_DASHBOARD_URL NEW_DIRECTORY 900` while a rehearsal runs; it records timestamped states and stops on a terminal event. Keep both the live capture and finished-app walkthrough.
+
+If an earlier SDK version exported only top-level files, `node --import tsx scripts/radar-export.ts --run REHEARSAL_ID` retrieves nested raw pages and receipts. `node --import tsx scripts/radar-audit.ts --run REHEARSAL_ID` checks their claim mapping, hashes, ownership, PR gates, final results and parallel execution.
 
 Open the merged target application and verify all filters, the details/evidence view, and shortlist persistence after reload. Confirm every displayed citation supports its named field; manually open representative official sources and compare them to the archived research quotes. Report any missing field or fewer than five verified events. Do not describe five candidates with failed fetches as five verified opportunities.
 

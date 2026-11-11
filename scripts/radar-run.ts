@@ -1,7 +1,7 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify, parseArgs } from 'node:util';
-import { cp, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readFile, writeFile, readdir } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -83,6 +83,16 @@ export async function startRun(input:{root:string;runId:string;presentationNow?:
   try {
     if (input.execute) await input.execute(record,directory);
     else {
+      const sourceHashes: Record<string,string> = {};
+      for (const folder of ['src','scripts','fixtures','demo/radar-seed']) {
+        for (const entry of await readdir(resolve(input.root,folder),{recursive:true,withFileTypes:true})) {
+          if(!entry.isFile()) continue;
+          const path=join(entry.parentPath,entry.name);
+          const relative=path.slice(resolve(input.root).length+1);
+          sourceHashes[relative]=createHash('sha256').update(await readFile(path)).digest('hex');
+        }
+      }
+      await writeFile(join(directory,'software.json'),JSON.stringify({revision:await command('git',['rev-parse','HEAD'],input.root),sha256:createHash('sha256').update(JSON.stringify(sourceHashes)).digest('hex'),sourceHashes},null,2));
       const {compose} = await import('../src/compose.js');
       await compose({radar:true,runId:record.runId,mode:record.mode,targetRepo:record.targetRepo,port:record.port,
         brief:await readFile(resolve(input.root,'demo/brief.md'),'utf8'),local:false,fakeAgent:false,fixturePlan:true,dryRun:false,

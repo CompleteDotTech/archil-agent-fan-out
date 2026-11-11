@@ -92,6 +92,7 @@
       }
       body.append(row);
     }
+    if (!state.dataset && state.roles.size) $('research-summary').textContent = 'Research jobs recorded; awaiting validated consolidation.';
     if (state.dataset) {
       safeLink($('dataset'), state.dataset.path || state.dataset.datasetPath);
       $('research-summary').textContent = String(state.dataset.eventCount ?? state.dataset.count ?? 0) + ' researched events · ' + (state.dataset.researchMode || 'research mode not recorded') + (state.dataset.shortfall ? ' · Shortfall: ' + state.dataset.shortfall : '');

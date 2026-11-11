@@ -28,7 +28,7 @@ function bodyFor(plan: Plan, task: TaskSpec): string {
     ...task.acceptance.map(criterion => `- [ ] ${criterion}`),
     '', '## Verify', '```sh', ...task.verify, '```',
     '', '## Owned paths', ...task.owns.map(path => `- \`${path}\``),
-    '', `Research notes: /research/${plan.runId}/${task.id}/sources.md`,
+    '',  /radar|hackathon/i.test(plan.brief) ? `Research dataset: /research/${plan.runId}/dataset.json; cited role notes: /research/${plan.runId}/roles/` : `Research notes: /research/${plan.runId}/${task.id}/sources.md`,
   ].join('\n');
 }
 
