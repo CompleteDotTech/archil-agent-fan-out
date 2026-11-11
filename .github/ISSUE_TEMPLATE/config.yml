@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/CompleteDotTech/archil-agent-fan-out/security/advisories/new
+    about: Please report security issues privately.
+  - name: Architecture docs
+    url: https://github.com/CompleteDotTech/archil-agent-fan-out/blob/main/docs/architecture.md
+    about: How the planner, forks, gate and recovery fit together.

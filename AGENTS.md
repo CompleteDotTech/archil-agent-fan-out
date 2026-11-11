@@ -31,7 +31,7 @@ Read `docs/PLAN.md` for what we are building. Read `swarm/tasks.yaml` for the ta
 5. **Verify before you finish.** Run every VERIFY command in your prompt, and fix failures until they all pass.
 6. **No secrets in code or output.** Never print, log or hard-code a secret. Read env vars only in `src/compose.ts` and `scripts/`; everything else receives configuration through parameters.
 7. **Code style.**
-   - TypeScript, ESM, Node 22.13 or later. Use `.js` extensions in relative imports (NodeNext).
+   - TypeScript, ESM, Node 22.19 or later. Use `.js` extensions in relative imports (NodeNext).
    - Keep functions small, and inject their dependencies so tests can pass in fakes.
    - Tests use vitest and no network. Put shared fixtures in `fixtures/`.
 

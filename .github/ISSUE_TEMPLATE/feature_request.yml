@@ -1,0 +1,21 @@
+name: Feature request
+description: Suggest an improvement to the swarm.
+labels: [enhancement, triage]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do, and what gets in the way?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+  - type: checkboxes
+    id: contracts
+    attributes:
+      label: Scope
+      options:
+        - label: This needs a change to `src/contracts/**` (root-owned ports)

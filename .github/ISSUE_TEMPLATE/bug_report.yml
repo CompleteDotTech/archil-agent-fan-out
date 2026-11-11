@@ -1,0 +1,37 @@
+name: Bug report
+description: Something in the swarm, gate, dashboard or adapters misbehaves.
+labels: [bug, triage]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for the report! Please never paste tokens, API keys or disk IDs.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [planner, research (Keenable), github publisher, archil adapters, worker, orchestrator / gate, dashboard, docs, other]
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Run mode
+      options: ["--local --fake-agent", "--local", "live Archil (--dry-run)", "live Archil", "tests only"]
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: Include the command you ran and the relevant log or report excerpt.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+  - type: input
+    id: version
+    attributes:
+      label: Node version and commit
+      placeholder: "node 22.13.0 · abc1234"
