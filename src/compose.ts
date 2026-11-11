@@ -199,6 +199,16 @@ export async function compose(options: ComposeOptions): Promise<void> {
     await emit('task.status',{status:'review'});
     await publisher.mergePullRequest(pr.number);
     await emit('pr.merged',{number:pr.number});
+    let workerBaseCommit = manifest.headCommit;
+    if (!dryRemote && !options.local) {
+      // GitHub squash-merges rewrite the architecture commit. Fork from the
+      // published history so later task PRs share main's actual merge base.
+      const refreshed = await sandboxes.exec(prepared.templateId,
+        'cd /repo && git fetch origin main && git checkout -B main origin/main && git rev-parse HEAD',
+        {timeoutMs:120000});
+      if (refreshed.exitCode !== 0) throw new Error('Failed to refresh template after architecture merge');
+      workerBaseCommit = refreshed.stdout.trim().split('\n').at(-1)!;
+    }
     await store.updateAttempt(runId,attemptId,{state:'passed'});
     await store.setTaskStatus(runId,architecture.id,'done');
     await publisher.setStatus(runId,architecture.id,'done');
@@ -220,7 +230,7 @@ export async function compose(options: ComposeOptions): Promise<void> {
       runId,integrationSandboxId:integrationId,finalVerify,
     });
     const scheduler = orchestration.createScheduler({store,publisher,sandboxes,gate,disk,recovery,integrator}, {
-      concurrency:3,attemptTimeoutMs:900000,baseCommit:manifest.headCommit,workerEnv,sandboxPool:pool,pollMs:50,
+      concurrency:3,attemptTimeoutMs:900000,baseCommit:workerBaseCommit,workerEnv,sandboxPool:pool,pollMs:50,
     });
     const outcome = await scheduler.runUntilDone(runId);
     await integrator.idle();

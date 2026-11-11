@@ -101,7 +101,7 @@ export async function runSmoke(
     deps.configure({ apiKey: config.apiKey, region: config.region });
     await check("Create sandbox", async () => {
       sandbox = await deps.createSandbox({
-        name: `smoke-${timestamp}`,
+        name: `smoke-${timestamp.replaceAll(".", "-").toLowerCase()}`,
         baseImage: "node:24-bookworm",
         vcpuCount: 1,
         memSizeMiB: 2048,

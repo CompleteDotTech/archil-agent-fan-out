@@ -1,0 +1,20 @@
+flowchart TB
+    accTitle: Stop a worker without losing its workspace
+    accDescr: Stopping an active worker interrupts its attempt. Within the recovery limit, the same sandbox restarts and Codex resumes with a new attempt identifier. Stale manifests are rejected.
+    A["RUNNING · attempt n<br/>Codex session in an Archil fork"]:::worker --> B["Dashboard · Stop<br/>sandbox.stop()"]:::warn
+    B --> C["INTERRUPTED<br/>Record state + event"]:::warn
+    C --> D{"Resume budget<br/>available?"}:::control
+    D -->|Yes| E["RESTART SAME SANDBOX<br/>Preserved repository + Codex session"]:::worker
+    D -->|No| X["No automatic resume"]:::warn
+    E --> F["NEW ATTEMPT · n + 1<br/>Copy task input · RESUME=1"]:::control
+    F --> G["codex exec resume --last<br/>Continue the preserved session"]:::worker
+    G --> H["Sync current manifest<br/>Re-enter verification gate"]:::success
+    I["Old attempt manifest"]:::data -.-> J["Rejected by attempt-ID fence"]:::data
+    K[("DURABLE CONTEXT<br/>Root disk: repository + session<br/>Shared disk: synced inputs + evidence")]:::data -.-> E
+
+    classDef input fill:#e0e7ff,stroke:#6366f1,color:#312e81,stroke-width:2px;
+    classDef control fill:#ede9fe,stroke:#8b5cf6,color:#4c1d95,stroke-width:2px;
+    classDef worker fill:#cffafe,stroke:#0891b2,color:#164e63,stroke-width:2px;
+    classDef data fill:#f1f5f9,stroke:#94a3b8,color:#334155,stroke-width:1.5px;
+    classDef success fill:#d1fae5,stroke:#059669,color:#064e3b,stroke-width:2px;
+    classDef warn fill:#fff1e6,stroke:#ea580c,color:#9a3412,stroke-width:2px;

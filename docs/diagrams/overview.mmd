@@ -1,0 +1,21 @@
+flowchart TB
+    accTitle: From a brief to verified delivery
+    accDescr: Research and planning feed an orchestrator that dispatches durable workers and verifies their work before sequential GitHub merges.
+    A["01 · DEFINE<br/>Brief + target repository"]:::input --> B["02 · PLAN<br/>Planner + dependency validation"]:::control
+    K["Keenable research<br/>Search · fetch · citations"]:::input --> B
+    B --> C["03 · COORDINATE<br/>Orchestrator"]:::control
+    C --> D["04 · BUILD<br/>Archil template → isolated worker forks"]:::worker
+    D --> E["05 · VERIFY<br/>Re-run checks + enforce owned paths"]:::control
+    E --> F["06 · DELIVER<br/>Sequential PR merges + integration tests"]:::success
+    C -.-> G["GitHub<br/>Issues · dependencies · Project"]:::data
+    C -.-> H[("Archil SQLite<br/>State + events")]:::data
+    H -.-> I["Live dashboard<br/>Progress · evidence · Stop control"]:::data
+    D <-.-> J[("Shared Archil disk<br/>Research · assignments · logs · manifests")]:::data
+    F --> L["Tested application<br/>Delivery report + traceable evidence"]:::success
+
+    classDef input fill:#e0e7ff,stroke:#6366f1,color:#312e81,stroke-width:2px;
+    classDef control fill:#ede9fe,stroke:#8b5cf6,color:#4c1d95,stroke-width:2px;
+    classDef worker fill:#cffafe,stroke:#0891b2,color:#164e63,stroke-width:2px;
+    classDef data fill:#f1f5f9,stroke:#94a3b8,color:#334155,stroke-width:1.5px;
+    classDef success fill:#d1fae5,stroke:#059669,color:#064e3b,stroke-width:2px;
+    classDef warn fill:#fff1e6,stroke:#ea580c,color:#9a3412,stroke-width:2px;

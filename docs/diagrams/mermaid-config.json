@@ -1,0 +1,19 @@
+{
+  "theme": "base",
+  "look": "classic",
+  "themeVariables": {
+    "fontFamily": "DejaVu Sans, sans-serif",
+    "fontSize": "17px",
+    "background": "#ffffff",
+    "primaryTextColor": "#0f172a",
+    "lineColor": "#64748b",
+    "edgeLabelBackground": "#ffffff"
+  },
+  "flowchart": {
+    "curve": "basis",
+    "nodeSpacing": 40,
+    "rankSpacing": 48,
+    "padding": 20,
+    "htmlLabels": true
+  }
+}

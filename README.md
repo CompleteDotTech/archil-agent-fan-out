@@ -6,25 +6,9 @@ The design and operating details below follow [docs/PLAN.md](docs/PLAN.md).
 
 ## Architecture
 
-```mermaid
-flowchart TD
-    Input[Brief + target repository] --> Planner[Planner + validator]
-    Keenable[Keenable search + fetch] --> Planner
-    Planner --> GitHub[GitHub issues + sub-issues + blocked-by + Project]
-    Planner --> Disk[Conditional shared Archil disk]
-    Planner --> Orchestrator[Orchestrator]
-    Orchestrator --> Template[Archil template: architecture task]
-    Template --> Stop[Stop template and fork]
-    Stop --> Workers[Codex workers in isolated sandboxes]
-    Workers <--> Disk
-    Workers --> Gate[Verify commands + owned-path gate]
-    Gate --> PRs[Pull requests + sequential squash merges]
-    PRs --> Tests[Integration tests + delivery report]
-    Orchestrator <--> SQLite[Archil SQLite: state + events]
-    Orchestrator --> Dashboard[Dashboard: logs + sources + PRs]
-    Dashboard --> Recovery[Stop worker / start and resume]
-    Recovery --> Workers
-```
+![Workflow from brief and research through durable workers to verified delivery](docs/diagrams/overview.png)
+
+[Editable Mermaid source](docs/diagrams/overview.mmd) · [Detailed workflow diagrams](docs/architecture.md)
 
 ## Run
 

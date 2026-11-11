@@ -1,0 +1,24 @@
+flowchart TB
+    accTitle: Evidence before delivery
+    accDescr: Current-attempt manifests are gated by owned paths and re-run verification. Failures retry once. Passing results merge serially and undergo integration verification.
+    A["Worker finishes<br/>Push branch + sync manifest"]:::worker --> B{"Current<br/>attempt?"}:::control
+    B -->|No| C["Ignore stale result"]:::data
+    B -->|Yes| D["DETERMINISTIC GATE<br/>Check owned paths<br/>Re-run every verify command"]:::control
+    D --> E{"All checks<br/>pass?"}:::control
+    E -->|No| F{"Retry<br/>available?"}:::warn
+    F -->|Yes · once| G["Send findings<br/>Start next attempt"]:::warn
+    G --> A
+    F -->|No| H["BLOCKED<br/>Record findings"]:::warn
+    E -->|Yes| I["Open pull request<br/>Link task issue"]:::success
+    I --> J["SERIAL MERGE QUEUE<br/>Squash merge in dependency order"]:::success
+    J --> K["Refresh main<br/>Run integration checks"]:::control
+    K --> L{"Integration<br/>passes?"}:::control
+    L -->|Yes| M["DONE<br/>Record evidence in delivery report"]:::success
+    L -->|No| H
+
+    classDef input fill:#e0e7ff,stroke:#6366f1,color:#312e81,stroke-width:2px;
+    classDef control fill:#ede9fe,stroke:#8b5cf6,color:#4c1d95,stroke-width:2px;
+    classDef worker fill:#cffafe,stroke:#0891b2,color:#164e63,stroke-width:2px;
+    classDef data fill:#f1f5f9,stroke:#94a3b8,color:#334155,stroke-width:1.5px;
+    classDef success fill:#d1fae5,stroke:#059669,color:#064e3b,stroke-width:2px;
+    classDef warn fill:#fff1e6,stroke:#ea580c,color:#9a3412,stroke-width:2px;

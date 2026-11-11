@@ -4,26 +4,9 @@ This document describes the design in [PLAN.md](PLAN.md). A run takes a brief an
 
 ## Components and data flow
 
-```mermaid
-flowchart TD
-    Input[Brief and target repository] --> Planner[Planner and validator]
-    Research[Keenable search and fetch] --> Planner
-    Research --> Disk[Conditional shared Archil disk]
-    Planner --> Orchestrator[Orchestrator: scheduler, gate, integrator, recovery]
-    Orchestrator --> Publisher[Paced GitHub publisher]
-    Publisher --> GitHub[Issues, dependencies, Project, PRs]
-    Orchestrator --> Template[Architecture task in template sandbox]
-    Template --> Forks[Stopped template forks into worker sandboxes]
-    Orchestrator --> Forks
-    Disk --> Forks
-    Forks -->|Logs and manifests| Disk
-    Disk --> Orchestrator
-    Orchestrator -->|State and events| SQLite[Archil SQLite]
-    SQLite --> Dashboard[Hono dashboard and SSE]
-    Dashboard -->|Stop request| Orchestrator
-    Orchestrator -->|Sequential merges and final checks| GitHub
-    Orchestrator -->|Delivery report| Disk
-```
+![End-to-end planning, execution, and delivery workflow](diagrams/overview.png)
+
+[Mermaid source](diagrams/overview.mmd) · [Rendering guide](diagrams/README.md)
 
 The planner uses AI SDK `generateObject` with a zod schema. Its validator rejects cycles, missing dependencies, missing verification commands, and overlapping owned paths between parallel tasks. Keenable research runs before dispatch and supplies cited notes through the shared disk; workers do not need to call Keenable from their sandboxes. Invalid live plans fall back to the fixture plan.
 
@@ -52,6 +35,10 @@ Git clones, `node_modules`, and the Codex session live on each sandbox's own roo
 
 ## Template and worker lifecycle
 
+![Architecture template forks into parallel API, UI, and search workers before serialized integration](diagrams/parallel-workers.png)
+
+[Mermaid source](diagrams/parallel-workers.mmd)
+
 The architecture task runs alone in a template sandbox. In the bookmark demo, T1 writes the contract and acceptance tests. The orchestrator then stops the template and forks one sandbox per worker, giving workers identical code and installed dependencies. T2 (API and store), T3 (web UI), and T4 (search) can run in parallel forks.
 
 For each dispatched attempt:
@@ -66,11 +53,19 @@ With `AGENT=fake`, the worker copies canned files instead of invoking Codex, all
 
 ## Deterministic gate and serialized integration
 
+![Current-attempt validation, verification, retry, and serialized merge workflow](diagrams/verification-gate.png)
+
+[Mermaid source](diagrams/verification-gate.mmd)
+
 The gate accepts a result only when every changed file matches the task's owned paths and every verification command passes when the orchestrator re-runs it in the fork. A failed task gets one retry with the findings; another failure makes it Blocked.
 
 Each passing attempt gets a pull request whose body closes its issue. Pull requests are squash-merged one at a time in dependency order. In the bookmark demo, the orchestrator runs `npm test` on main after each merge and writes the delivery report. GitHub Project status tracks Backlog, Ready, Running, Review, Done, and Blocked.
 
 ## Current-attempt fencing and stop/resume
+
+![Interrupted worker resumes in its preserved sandbox with a new attempt identifier](diagrams/stop-resume.png)
+
+[Mermaid source](diagrams/stop-resume.mmd)
 
 Execution handles and deadlines track workers. Pressing Stop in the dashboard calls `sandbox.stop()`. When execution ends without a manifest, the orchestrator marks the attempt interrupted, creates attempt n+1, starts the same sandbox, and runs the worker with `RESUME=1`. Codex resumes its session on the preserved root disk.
 

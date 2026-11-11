@@ -49,7 +49,9 @@ export function archilDb(disk: Disk, path: string): Db {
       const values = parameters(params);
       const strings = template(sql, values.length);
       const db = await getDatabase();
-      return await db.read<T>(strings, ...values).all();
+      // A read can need to recover a journal left by a concurrent writer.
+      // Use the writable directory checkout for this single-writer state DB.
+      return await db.write<T>(strings, ...values).all();
     },
     async batch(stmts) {
       if (stmts.length === 0) return;

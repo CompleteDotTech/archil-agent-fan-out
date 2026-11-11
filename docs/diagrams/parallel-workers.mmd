@@ -1,0 +1,26 @@
+flowchart TB
+    accTitle: Prepare once, build in parallel
+    accDescr: Architecture runs in a template before it is stopped and forked for API, UI, and search work. Results feed serialized integration.
+    A["T1 · ARCHITECTURE<br/>Contracts + acceptance tests<br/>Installed dependencies"]:::control
+    A --> B["STOP TEMPLATE<br/>Preserve the common starting point"]:::control
+    B --> C["FORK · T2<br/>API + store"]:::worker
+    B --> D["FORK · T3<br/>Web UI"]:::worker
+    B --> E["FORK · T4<br/>Search"]:::worker
+    C --> F["Per-task gate"]:::control
+    D --> G["Per-task gate"]:::control
+    E --> H["Per-task gate"]:::control
+    F --> I["SERIAL INTEGRATION<br/>One PR at a time · dependency order"]:::success
+    G --> I
+    H --> I
+    I --> J["Verify main → delivery report"]:::success
+    K[("SHARED DISK<br/>Cited context in · synced evidence out")]:::data
+    K <-.-> C
+    K <-.-> D
+    K <-.-> E
+
+    classDef input fill:#e0e7ff,stroke:#6366f1,color:#312e81,stroke-width:2px;
+    classDef control fill:#ede9fe,stroke:#8b5cf6,color:#4c1d95,stroke-width:2px;
+    classDef worker fill:#cffafe,stroke:#0891b2,color:#164e63,stroke-width:2px;
+    classDef data fill:#f1f5f9,stroke:#94a3b8,color:#334155,stroke-width:1.5px;
+    classDef success fill:#d1fae5,stroke:#059669,color:#064e3b,stroke-width:2px;
+    classDef warn fill:#fff1e6,stroke:#ea580c,color:#9a3412,stroke-width:2px;
