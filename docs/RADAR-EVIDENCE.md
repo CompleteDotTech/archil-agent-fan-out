@@ -11,7 +11,7 @@ The implementation distinguishes three research jobs from the older planner rese
 | `run-2026-11-11T05-06-28-694Z-fa79a063` | Synthetic events, fake coding agents, local git integration. All four tasks and final acceptance passed; ten browser checks passed. This is an engineering check, not a cloud rehearsal. | `.swarm/radar/<id>/`: dataset, app, events, reports, browser QA. |
 | `radar-rehearsal-2026-11-11T05-10-22-679Z-4b323cfd` | Fresh research and real architecture coding completed. Typecheck and four architecture tests passed, but delivery aborted before a gate result was published. Dependency files were incorrectly included; seed ignore rules and serialized state writes were added before the next run. | [Target](https://github.com/CompleteDotTech/radar-rehearsal-20261111-c); `.swarm/radar/<id>/`. |
 
-| `radar-rehearsal-2026-11-11T05-18-18-601Z-a84065ac` | Current fresh cloud rehearsal, with repaired seed and state serialization. | [Target](https://github.com/CompleteDotTech/radar-rehearsal-20261111-d); `.swarm/radar/<id>/`. |
+| `radar-rehearsal-2026-11-11T05-18-18-601Z-a84065ac` | Fresh research and real Archil run; architecture passed its gate and [PR #6 merged](https://github.com/CompleteDotTech/radar-rehearsal-20261111-d/pull/6). Four forks were stopped at the user’s request before coding delivery. Evidence retained. | [Target](https://github.com/CompleteDotTech/radar-rehearsal-20261111-d); `.swarm/radar/<id>/`. |
 
 ## Verification scope
 
@@ -21,4 +21,4 @@ Representative official pages were separately opened during preparation: [PayPal
 
 ## Judges
 
-No judges execution has occurred. A separate clean target will be seeded after the full rehearsal succeeds. Starting requires an explicit presentation-time signal and `--presentation-now`; see [the runbook](RADAR-RUNBOOK.md). A recording or prepared command never counts as that second execution.
+The user explicitly requested stopping and clearing active rehearsal workers to start the judges run. Rehearsal `radar-rehearsal-2026-11-11T05-18-18-601Z-a84065ac` was stopped and preserved. Judges run `radar-judges-2026-11-11T05-25-17-039Z-61894933` started from a separate clean repo with fresh research. It is not completed yet. The original successful-rehearsal criterion remains unmet; no stopped run or fixture is relabeled as successful. See [the runbook](RADAR-RUNBOOK.md).

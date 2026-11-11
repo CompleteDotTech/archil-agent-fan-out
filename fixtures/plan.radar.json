@@ -30,7 +30,8 @@
         "Define stubs src/api/index.ts exporting createApi(dataset,filter), src/filter/index.ts exporting filterEvents(events,{mode?,eligibility?,after?}), src/ui/index.ts exporting createUi(publicDir). Stubs may throw until siblings complete.",
         "GET /api/dataset returns dataset unchanged. GET /api/events combines mode, eligibility and inclusive after YYYY-MM-DD filters and returns {runId,datasetId,events}. GET /api/events/:id returns {runId,datasetId,event,findings,sources}; GET /api/evidence returns provenance. Invalid filters 400, absent ID 404.",
         "Write tests/architecture.test.ts verifying scaffold/data presence; tests/acceptance/api.test.ts, ui.test.ts, filter.test.ts and tests/acceptance/data.ts. API tests should test unchanged dataset/detail/evidence without requiring implemented filter. UI tests verify served files and exported createShortlist(storage,runId) from public/shortlist.js, reload persistence/cross-run isolation. Filter tests verify all combinations, inclusive date and uncertain exclusions.",
-        "Install no dependencies; package.json and tsconfig preinstalled. TypeScript ESM relative .js imports."
+        "Install no dependencies; package.json and tsconfig preinstalled. TypeScript ESM relative .js imports.",
+        "Freeze the research schema codes exactly: attendanceMode online/in-person/hybrid/unknown; eligibility open/student-only/unknown. Use student-only in fixtures and tests, never replace it with students. Unknown must be accepted as an API filter for uncertain claims. Include real-schema student-only and unknown cases in API/filter acceptance tests. The deadline after boundary is inclusive UTC midnight and the UI must say UTC."
       ],
       "verify": [
         "npm run typecheck",
@@ -82,7 +83,8 @@
         "Filters mode/eligibility/after and saved-only; readable event detail and separate evidence view. IDs mode,eligibility,after,saved,cards,detail,evidence.",
         "Export createShortlist(storage,runId) from public/shortlist.js, methods toggle(id):boolean,has(id),values(). localStorage radar:<runId>:shortlist; tolerate corrupt/blocked storage, preserve reload and isolate runs.",
         "Use API contract, escape data before DOM insertion, visibly label dataset run/research mode.",
-        "Eligibility labels are categories, not a determination that a specific user qualifies; point to official restrictions."
+        "Eligibility labels are categories, not a determination that a specific user qualifies; point to official restrictions.",
+        "Mark events with a verified deadline before dataset.createdAt as historical/closed examples on cards and details. Never present a past submission as open. Show source status conflicting correctly, preserving competing evidence."
       ],
       "verify": [
         "npm run typecheck",
@@ -106,7 +108,8 @@
       "acceptance": [
         "Implement filterEvents(events,{mode?,eligibility?,after?}) per docs/api.md.",
         "Combine all predicates. Category filters match only verified claims. unknown matches uncertain/unknown categories. after inclusive compares ISO deadline date, excludes missing/conflicting/invalid deadline; never substitute event dates.",
-        "Preserve event order and objects; no mutation."
+        "Preserve event order and objects; no mutation.",
+        "Use canonical student-only exactly as stored in the research dataset. Include tests that verified student-only matches student-only, is excluded from unknown/open, and that API unknown options reach this filter."
       ],
       "verify": [
         "npm run typecheck",

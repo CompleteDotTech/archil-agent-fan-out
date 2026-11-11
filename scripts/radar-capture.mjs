@@ -11,13 +11,14 @@ if (!address || !destination) { console.log('Usage: node scripts/radar-capture.m
 const url = new URL(address);
 const runId = url.searchParams.get('run');
 const maxSeconds = Number(maximum);
+const mode = runId?.startsWith('radar-judges-') ? 'judges' : 'rehearsal';
 if (url.protocol !== 'http:' || !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname) || !runId || !Number.isFinite(maxSeconds) || maxSeconds <= 0 || maxSeconds > 900) throw new Error('Expected local HTTP dashboard with run ID and 0 < MAX_SECONDS <= 900');
 const output = path.resolve(destination);
 await mkdir(path.dirname(output), { recursive: true });
 await mkdir(output); // A previous capture is immutable.
 await mkdir(path.join(output, 'frames'));
 const profile = await mkdtemp(path.join(tmpdir(), 'radar-live-capture-'));
-const report = { runId, dashboardUrl: url.href, label: 'Actual live rehearsal capture, not a judges run', startedAt: new Date().toISOString(), maximumSeconds: maxSeconds, intervalSeconds: 2, frames: 0, stopReason: null, recording: null, errors: [] };
+const report = { runId, dashboardUrl: url.href, label: `Actual live ${mode} capture`, startedAt: new Date().toISOString(), maximumSeconds: maxSeconds, intervalSeconds: 2, frames: 0, stopReason: null, recording: null, errors: [] };
 let browser, socket, sessionId;
 const pending = new Map();
 let sequence = 1;
@@ -58,12 +59,12 @@ function safeSnapshot(snapshot, capturedAt) {
   const events = snapshot.evidenceEvents ?? snapshot.events ?? [];
   return {
     capturedAt, runId, statuses: snapshot.statuses, attempts: (snapshot.attempts ?? []).map(({ runId, taskId, attemptId, sandboxId, n, state, resume, startedAt, deadlineAt }) => ({ runId, taskId, attemptId, sandboxId, n, state, resume, startedAt, deadlineAt })),
-    evidence: events.filter(({ event }) => ['research.role', 'research.dataset', 'gate.result', 'pr.opened', 'pr.merged', 'integration.result', 'run.done'].includes(event.type)).map(({ index, event }) => ({ index, type: event.type, taskId: event.taskId, at: event.at, data: event.type === 'integration.result' ? { pass: event.data.pass, final: event.data.final } : event.data })),
+    evidence: events.filter(({ event }) => ['research.role', 'research.dataset', 'gate.result', 'pr.opened', 'pr.merged', 'integration.result', 'run.reopened', 'run.failed', 'run.done'].includes(event.type)).map(({ index, event }) => ({ index, type: event.type, taskId: event.taskId, at: event.at, data: event.type === 'integration.result' ? { pass: event.data.pass, final: event.data.final } : event.data })),
   };
 }
 async function finishVideo() {
   if (!report.frames) return;
-  const movie = path.join(output, 'live-rehearsal.mp4');
+  const movie = path.join(output, `live-${mode}.mp4`);
   await exec('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-framerate', '0.5', '-i', path.join(output, 'frames', '%05d.png'), '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-r', '24', '-movflags', '+faststart', movie], { maxBuffer: 1024 * 1024 });
   const probe = JSON.parse((await exec('ffprobe', ['-v', 'error', '-show_entries', 'format=duration:stream=width,height,codec_name', '-of', 'json', movie])).stdout);
   await exec('ffmpeg', ['-v', 'error', '-i', movie, '-f', 'null', '-'], { maxBuffer: 1024 * 1024 });
@@ -80,7 +81,7 @@ try {
     const snapshot = await response.json();
     const summary = safeSnapshot(snapshot, capturedAt);
     const view = Math.floor(report.frames / 4) % 3;
-    await evaluate(`(() => { const target=${JSON.stringify(view === 0 ? 'research-heading' : view === 1 ? 'tasks-heading' : 'trace-heading')}; document.getElementById(target)?.scrollIntoView({block:'start'}); if(target==='trace-heading'){ const rows=Array.from(document.querySelectorAll('.task-select'));(rows.at(-1)||rows[0])?.click(); } let e=document.getElementById('live-capture-label'); if(!e){e=document.createElement('div');e.id='live-capture-label';e.style.cssText='position:fixed;bottom:14px;right:14px;z-index:10000;background:#101a2a;border:2px solid #80d8ff;color:white;padding:14px 20px;font:15px system-ui;border-radius:10px;box-shadow:0 3px 20px #000';document.body.append(e);} e.textContent=${JSON.stringify(`LIVE REHEARSAL CAPTURE · ${runId} · ${capturedAt}`)}; })()`);
+    await evaluate(`(() => { const target=${JSON.stringify(view === 0 ? 'research-heading' : view === 1 ? 'tasks-heading' : 'trace-heading')}; document.getElementById(target)?.scrollIntoView({block:'start'}); if(target==='trace-heading'){ const rows=Array.from(document.querySelectorAll('.task-select'));(rows.at(-1)||rows[0])?.click(); } let e=document.getElementById('live-capture-label'); if(!e){e=document.createElement('div');e.id='live-capture-label';e.style.cssText='position:fixed;bottom:14px;right:14px;z-index:10000;background:#101a2a;border:2px solid #80d8ff;color:white;padding:14px 20px;font:15px system-ui;border-radius:10px;box-shadow:0 3px 20px #000';document.body.append(e);} e.textContent=${JSON.stringify(`LIVE ${mode.toUpperCase()} CAPTURE · ${runId} · ${capturedAt}`)}; })()`);
     const { data } = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
     const basename = String(report.frames).padStart(5, '0');
     await writeFile(path.join(output, 'frames', basename + '.png'), Buffer.from(data, 'base64'));
@@ -88,7 +89,7 @@ try {
     report.frames++;
     await writeFile(path.join(output, 'capture.json'), JSON.stringify(report, null, 2) + '\n');
     if (report.frames === 1 || report.frames % 15 === 0) console.log(JSON.stringify({ capturedAt, runId, frames: report.frames, statuses: snapshot.statuses }));
-    if (summary.evidence.some(item => ['run.done','run.failed'].includes(item.type))) { report.stopReason = 'Observed terminal run event'; break; }
+    if (summary.evidence.some(item => ['run.done','run.failed'].includes(item.type) && item.at >= report.startedAt)) { report.stopReason = 'Observed terminal run event'; break; }
     await sleep(Math.max(0, 2000 - (Date.now() - tick)));
   }
   report.stopReason ??= 'Maximum capture duration reached; no completion inferred';

@@ -56,7 +56,7 @@ Open the merged target application and verify all filters, the details/evidence 
 
 Capture a backup video showing the working app, actual role events, shared-disk receipts, separate workers, one finding-to-PR trace, and final test results. Play the resulting recording and confirm its video, duration, readable run ID, and actual content before calling it a checked backup. Record the file path and playback result in the rehearsal evidence index. A recording of static exhibits is not evidence that work was running live.
 
-## Run B: prepare now, start only on signal
+## Run B: prepare, start only on signal
 
 Only after the rehearsal succeeds, prepare another new target:
 

@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 
 export type RunMode = 'rehearsal' | 'judges';
 export interface RadarRunRecord {
-  version: 1; runId: string; mode: RunMode; status: 'prepared'|'seeded'|'starting'|'completed'|'failed';
+  version: 1; runId: string; mode: RunMode; status: 'prepared'|'seeded'|'starting'|'completed'|'failed'|'stopped';
   preparedAt: string; targetRepo: string; baseBranch: 'main'; seedPath: string;
   softwareRevision: string; researchMode: 'fresh'; port: number;
   seedCommit?: string; startedAt?: string; endedAt?: string; failure?: string;

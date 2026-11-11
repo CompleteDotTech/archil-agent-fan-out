@@ -408,6 +408,8 @@
           state.logs.set(id, lines.slice(-200));
         }
         break;
+      case 'run.reopened':
+        state.finished=false; state.final=null; notice('Additional verification task running.'); void refresh(); break;
       case 'run.failed':
         state.finished = true; notice('Run failed during ' + (data.phase || 'execution'), true); connection('Run failed', 'error'); break;
       case 'run.done':
@@ -417,7 +419,7 @@
         break;
       case 'plan.published':
         // Fetch the plan when the dashboard was opened before publication.
-        if (!state.tasks.length && repaint) refresh().catch(error => notice(error.message, true));
+        if (repaint) refresh().catch(error => notice(error.message, true));
         break;
     }
     if (repaint) {
@@ -455,7 +457,7 @@
     };
     stream.onmessage = receive;
     // Support either ordinary SSE messages or explicitly named event frames.
-    ['run.started','plan.published','research.role','research.dataset','research.done','task.status','attempt.started','attempt.interrupted','attempt.stop_requested','sandbox.forked','agent.log','gate.result','pr.opened','pr.merged','integration.result','run.failed','run.done'].forEach(type => stream.addEventListener(type, receive));
+    ['run.started','plan.published','research.role','research.dataset','research.done','task.status','attempt.started','attempt.interrupted','attempt.stop_requested','sandbox.forked','agent.log','gate.result','pr.opened','pr.merged','integration.result','run.reopened','run.failed','run.done'].forEach(type => stream.addEventListener(type, receive));
     stream.onerror = () => { connection('Connection interrupted · reconnecting…', 'error'); $('retry').hidden = false; };
   }
   async function start() {

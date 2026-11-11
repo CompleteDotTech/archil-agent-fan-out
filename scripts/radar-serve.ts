@@ -35,7 +35,7 @@ const dashboard=createDashboard({store,disk},{async stopTask(){throw new Error('
 const delivered=await import(pathToFileURL(join(appRoot,'src/app.ts')).href);
 const product=delivered.createApp({dataset,publicDir:join(appRoot,'public')}) as Hono;
 const app=new Hono();
-app.get('/engineering',async c=>{const response=await dashboard.request('/');const html=await response.text();return c.html(html.replace('<body>','<body><div style="padding:12px;background:#fbd38d;color:#17202a;text-align:center">RECORDED REHEARSAL EVIDENCE — '+runId+' — workers are stopped</div>'));});
+app.get('/engineering',async c=>{const response=await dashboard.request('/');const html=await response.text();return c.html(html.replace('<body>','<body><div style="padding:12px;background:#fbd38d;color:#17202a;text-align:center">RECORDED RUN EVIDENCE — '+runId+' — workers are stopped</div>'));});
 app.all('/api/runs/*',c=>dashboard.fetch(c.req.raw));
 app.all('/research/*',c=>dashboard.fetch(c.req.raw));
 app.all('/runs/*',c=>dashboard.fetch(c.req.raw));

@@ -13,8 +13,11 @@ const plan=JSON.parse(await readFile(artifact(`spec/${data.runId}/plan.json`),'u
 const events=(JSON.parse(await readFile(join(root,'events.json'),'utf8')) as {event:SwarmEvent}[]).map(e=>e.event);
 const checks:{name:string;pass:boolean;detail:unknown}[]=[];
 const check=(name:string,pass:boolean,detail:unknown)=>checks.push({name,pass,detail});
+const start=events.find(event=>event.type==='run.started')?.at;
+check('fresh retrieval timestamps',data.researchMode!=='fresh'||(!!start&&data.sources.every(source=>source.retrievedAt>=start)),{mode:data.researchMode,startedAt:start});
 check('five events',data.events.length===5,{count:data.events.length,shortfall:data.shortfall});
 check('three completed roles',data.roles.length===3&&data.roles.every(r=>r.status==='complete'),data.roles.map(r=>({role:r.role,status:r.status,findings:r.findings.length,errors:r.errors})));
+for(const source of data.sources){const page=await readFile(artifact(source.contentPath.slice(1)),'utf8');check(`source hash ${source.id}`,createHash('sha256').update(page).digest('hex')===source.contentHash,{url:source.url});}
 for(const f of data.findings){const source=data.sources.find(s=>s.id===f.sourceId)!;const page=await readFile(artifact(source.contentPath.slice(1)),'utf8');check(`source quote ${f.id}`,page.includes(f.quote),{sourceId:source.id,url:source.url});}
 const shared=await readFile(artifact(`research/${data.runId}/dataset.json`));
 const sha=createHash('sha256').update(shared).digest('hex');

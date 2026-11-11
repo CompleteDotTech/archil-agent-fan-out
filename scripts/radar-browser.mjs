@@ -99,7 +99,7 @@ async function setFilter(id, value) {
   await sleep(350);
   await waitFor(`!document.getElementById('error')?.textContent`);
 }
-async function visibleIds() { return evaluate(`Array.from(document.querySelectorAll('.card')).map(e=>e.dataset.eventId).sort()`); }
+async function visibleIds() { return evaluate(`Array.from(document.querySelectorAll('.card')).map(e=>e.dataset.eventId || e.querySelector('[data-save-id]')?.dataset.saveId).sort()`); }
 async function reset() { await evaluate(`document.getElementById('filters').reset()`); await sleep(400); }
 async function label(text) {
   await evaluate(`(() => { let e=document.getElementById('recording-label'); if(!e){e=document.createElement('div');e.id='recording-label'; e.style.cssText='position:fixed;bottom:12px;right:12px;z-index:100000;background:#172d2a;color:white;border:1px solid #bacdbc;border-radius:8px;padding:12px 18px;font:14px system-ui;max-width:500px;box-shadow:0 3px 15px #0006';document.body.append(e);} e.textContent=${JSON.stringify(text)}; })()`);
@@ -111,34 +111,42 @@ try {
   report.runId = dataset.runId; report.datasetId = dataset.datasetId; report.researchMode = dataset.researchMode;
   check('five researched events rendered', dataset.events.length === 5 && (await visibleIds()).length === 5, { expected: 5, actual: dataset.events.length });
   await screenshot('01-delivered-app.png');
-  // Use source-derived values, so QA remains valid for future fresh datasets.
+  // Verify every displayed category, including unknown, against the delivered evidence.
   for (const [id, field] of [['mode', 'attendanceMode'], ['eligibility', 'eligibility']]) {
-    const candidate = dataset.events.find(e => e.fields[field].status === 'verified' && e.fields[field].value);
-    if (!candidate) { check(`${id} filter has verified evidence`, false, 'No verified field to exercise'); }
-    const value = candidate.fields[field].value;
-    await setFilter(id, value);
-    const actual = await visibleIds();
-    const expected = dataset.events.filter(e => e.fields[field].status === 'verified' && e.fields[field].value === value).map(e => e.id).sort();
-    check(`${id} filter`, JSON.stringify(actual) === JSON.stringify(expected), { value, expected, actual });
-    await reset();
+    const values=await evaluate(`Array.from(document.getElementById(${JSON.stringify(id)}).options).map(o=>o.value).filter(Boolean)`);
+    for(const value of values) {
+      await setFilter(id,value);
+      const actual=await visibleIds();
+      const known=field==='attendanceMode'?['online','in-person','hybrid']:['open','student-only','students'];
+      const canonical=value==='students'?'student-only':value;
+      const expected=dataset.events.filter(e=> {
+        const claim=e.fields[field];
+        const verified=claim.status==='verified'&&known.includes(claim.value);
+        return canonical==='unknown' ? !verified : verified && (claim.value==='students'?'student-only':claim.value)===canonical;
+      }).map(e=>e.id).sort();
+      check(`${id} filter: ${value}`,JSON.stringify(actual)===JSON.stringify(expected),{value,expected,actual});
+      await reset();
+    }
   }
+  const closed=dataset.events.filter(e=>e.fields.deadline.status==='verified'&&Date.parse(e.fields.deadline.value)<Date.parse(dataset.createdAt));
+  for(const event of closed){const label=await evaluate(`(()=>{const id=${JSON.stringify(event.id)};const card=Array.from(document.querySelectorAll('.card')).find(c=>c.dataset.eventId===id||c.querySelector('[data-save-id]')?.dataset.saveId===id);return card?.textContent||'';})()`);check('closed event clearly labelled: '+event.id,/historical|closed|past deadline/i.test(label),{eventId:event.id});}
   const deadline = dataset.events.find(e => e.fields.deadline.status === 'verified' && /^\d{4}-\d{2}-\d{2}/.test(e.fields.deadline.value || ''));
   check('deadline filter has verified evidence', Boolean(deadline), { eventId: deadline?.id });
   const after = deadline.fields.deadline.value.slice(0, 10);
   await setFilter('after', after);
   const actual = await visibleIds();
-  const expected = dataset.events.filter(e => e.fields.deadline.status === 'verified' && /^\d{4}-\d{2}-\d{2}/.test(e.fields.deadline.value || '') && e.fields.deadline.value.slice(0, 10) >= after).map(e => e.id).sort();
+  const expected = dataset.events.filter(e => e.fields.deadline.status === 'verified' && /^\d{4}-\d{2}-\d{2}/.test(e.fields.deadline.value || '') && Date.parse(e.fields.deadline.value) >= Date.parse(after+'T00:00:00Z')).map(e => e.id).sort();
   check('deadline filter excludes unknown and earlier dates', JSON.stringify(actual) === JSON.stringify(expected), { after, expected, actual });
   await screenshot('02-deadline-filter.png'); await reset();
-  const selected = await evaluate(`(() => {const card=document.querySelector('.card');const save=card.querySelector('.save');if(save.getAttribute('aria-pressed')!=='true')save.click();return card.dataset.eventId})()`);
+  const selected = await evaluate(`(() => {const card=document.querySelector('.card');const save=card.querySelector('.save, [data-save-id]');if(save.getAttribute('aria-pressed')!=='true')save.click();return card.dataset.eventId || save.dataset.saveId})()`);
   await navigate(appUrl, `document.querySelectorAll('.card').length > 0`);
-  const persisted = await evaluate(`document.querySelector('.card[data-event-id='+CSS.escape(${JSON.stringify(selected)})+'] .save')?.getAttribute('aria-pressed')`);
+  const persisted = await evaluate(`(document.querySelector('.card[data-event-id='+CSS.escape(${JSON.stringify(selected)})+'] .save') || document.querySelector('[data-save-id='+CSS.escape(${JSON.stringify(selected)})+']'))?.getAttribute('aria-pressed')`);
   check('shortlist survives browser reload', persisted === 'true', { eventId: selected });
-  const isolation = await evaluate(`(async()=>{ const {createShortlist}=await import('/shortlist.js');const other=createShortlist(localStorage,${JSON.stringify(dataset.runId + '-isolated-browser-check')});return {current:JSON.parse(localStorage.getItem(${JSON.stringify('radar:' + dataset.runId + ':shortlist')})||'[]'),other:other.values()};})()`);
+  const isolation = await evaluate(`(async()=>{ const {createShortlist}=await import('/shortlist.js');const other=createShortlist(localStorage,${JSON.stringify(dataset.runId + '-isolated-browser-check')});return {current:JSON.parse(localStorage.getItem(${JSON.stringify('radar:' + dataset.runId + ':shortlist')})||'[]'),other:(other.values ? other.values() : other.list())};})()`);
   check('shortlist isolated by run ID', isolation.current.includes(selected) && isolation.other.length === 0, isolation);
-  await evaluate(`document.querySelector('.detail-button').click()`);
-  await waitFor(`document.getElementById('detail').open`);
-  const links = await evaluate(`Array.from(document.querySelectorAll('#detail .citation')).map(a=>({href:a.href,findingId:a.dataset.findingId,sourceId:a.dataset.sourceId,title:a.title,target:a.target}))`);
+  await evaluate(`(document.querySelector('.detail-button') || Array.from(document.querySelectorAll('.card button')).find(e=>/view details/i.test(e.textContent))).click()`);
+  await waitFor(`document.getElementById('detail').open || (!document.getElementById('detail').hidden && document.querySelector('#detail h2'))`);
+  const links = await evaluate(`(async()=>{const d=await fetch('/api/dataset').then(r=>r.json());return Array.from(document.querySelectorAll('#detail a.citation, #detail .citation a')).map(a=>{const text=a.closest('.citation').textContent;const f=d.findings.find(f=>text.includes(f.id));return {href:a.href,findingId:a.dataset.findingId || f?.id,sourceId:a.dataset.sourceId || f?.sourceId,title:a.title+' '+text,target:a.target};});})()`);
   check('details have cited claims', links.length > 0, { count: links.length });
   const mapped = links.every(link => {
     const finding = dataset.findings.find(f => f.id === link.findingId);
@@ -147,15 +155,16 @@ try {
   });
   check('clickable citations map to findings and intended sources', mapped, links);
   await screenshot('03-details-citations.png');
-  await evaluate(`document.querySelector('#detail .close').click();document.getElementById('evidence').click()`);
-  await waitFor(`document.querySelectorAll('.source-item').length > 0`);
-  check('evidence view exposes all dataset sources', await evaluate(`document.querySelectorAll('.source-item').length`) === dataset.sources.length, { sources: dataset.sources.length });
+  await evaluate(`(() => {const evidence=document.getElementById('evidence');if(evidence.tagName==='BUTTON'){document.querySelector('#detail .close').click();evidence.click();}else{Array.from(document.querySelectorAll('#detail button')).find(e=>/source evidence/i.test(e.textContent)).click();}})()`);
+  await waitFor(`document.querySelectorAll('.source-item, #evidence .evidence-item').length > 0`);
+  const evidenceCounts=await evaluate(`({global:document.querySelectorAll('.source-item').length,findings:document.querySelectorAll('#evidence .evidence-item').length})`);
+  check('evidence view exposes cited sources or selected-event findings', evidenceCounts.global===dataset.sources.length || evidenceCounts.findings===dataset.findings.filter(f=>f.eventId===selected).length, evidenceCounts);
   await screenshot('04-evidence.png');
-  await evaluate(`document.querySelector('#detail .close').click()`);
+  await evaluate(`(() => {const p=document.getElementById('evidence').hidden?document.getElementById('detail'):document.getElementById('evidence');(p.querySelector('.close') || Array.from(p.querySelectorAll('button')).find(e=>/^close/i.test(e.textContent)))?.click();})()`);
   if (recordSeconds) {
     const frames = path.join(output, 'frames'); await mkdir(frames);
     const start = Date.now(); let frame = 0; let stage = -1;
-    const baseLabel = `REHEARSAL RECORDING · ${dataset.runId} · ${dataset.researchMode} research`;
+    const baseLabel = `${dataset.runId.startsWith('radar-judges-') ? 'JUDGES RUN' : dataset.researchMode==='fixture' ? 'SYNTHETIC FIXTURE' : 'REHEARSAL'} RECORDING · ${dataset.runId} · ${dataset.researchMode} research`;
     while ((Date.now() - start) / 1000 < recordSeconds) {
       const elapsed = (Date.now() - start) / 1000;
       const nextStage = elapsed < 25 ? 0 : elapsed < 60 ? 1 : elapsed < 95 ? 2 : elapsed < 140 ? 3 : 4;
@@ -165,14 +174,14 @@ try {
         if (stage === 1 && dashboardUrl) await navigate(dashboardUrl, `document.getElementById('research-roles')?.children.length > 0`);
         if (stage === 2 && dashboardUrl) await evaluate(`document.getElementById('tasks')?.scrollIntoView({block:'start'})`);
         if (stage === 3 && dashboardUrl) { await evaluate(`(() => { const tasks=Array.from(document.querySelectorAll('.task-select'));(tasks.at(-1)||tasks[0])?.click();document.getElementById('trace')?.scrollIntoView({block:'center'});})()`); }
-        if (stage === 4 || (!dashboardUrl && stage > 0)) { await navigate(appUrl, `document.querySelectorAll('.card').length > 0`); if (stage === 4) await evaluate(`document.getElementById('evidence').click()`); }
-        await label(baseLabel + (dashboardUrl && stage > 0 && stage < 4 ? ' · recorded run evidence; no fresh judges run claimed' : ' · delivered app walkthrough'));
+        if (stage === 4 || (!dashboardUrl && stage > 0)) { await navigate(appUrl, `document.querySelectorAll('.card').length > 0`); if (stage === 4) await evaluate(`(() => {const e=document.getElementById('evidence');if(e.tagName==='BUTTON')e.click();else Array.from(document.querySelectorAll('.card button')).find(b=>/^evidence$/i.test(b.textContent))?.click();})()`); }
+        await label(baseLabel + (dashboardUrl && stage > 0 && stage < 4 ? ' · recorded run evidence; this is a replay' : ' · delivered app walkthrough'));
       }
       const { data } = await cdp.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
       await writeFile(path.join(frames, `${String(frame++).padStart(5, '0')}.png`), Buffer.from(data, 'base64'));
       await sleep(Math.max(0, (start + frame * 1000) - Date.now()));
     }
-    const movie = path.join(output, 'rehearsal.mp4');
+    const movie = path.join(output, dataset.runId.startsWith('radar-judges-') ? 'judges-walkthrough.mp4' : 'rehearsal.mp4');
     await exec('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-framerate', '1', '-i', path.join(frames, '%05d.png'), '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-r', '24', '-movflags', '+faststart', movie], { maxBuffer: 1024 * 1024 });
     const probe = JSON.parse((await exec('ffprobe', ['-v', 'error', '-show_entries', 'format=duration:stream=width,height,codec_name', '-of', 'json', movie])).stdout);
     await exec('ffmpeg', ['-v', 'error', '-i', movie, '-f', 'null', '-'], { maxBuffer: 1024 * 1024 });

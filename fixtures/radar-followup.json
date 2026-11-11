@@ -1,0 +1,36 @@
+{
+  "id": "T5",
+  "title": "Align eligibility filters with researched categories and label closed examples",
+  "kind": "task",
+  "parent": "EP1",
+  "dependsOn": [
+    "T1",
+    "T2",
+    "T3",
+    "T4"
+  ],
+  "owns": [
+    "src/types.ts",
+    "src/api/**",
+    "src/filter/**",
+    "src/ui/**",
+    "public/**",
+    "tests/**",
+    "docs/api.md"
+  ],
+  "acceptance": [
+    "Preserve data/research.json byte-for-byte and do not invent event facts.",
+    "The research schema uses eligibility value student-only, open, or null/unverified. API and filter must accept canonical student-only and unknown; retain students as a backward-compatible input alias. Normalize comparisons only, never rewrite returned research data. A verified student-only event must match both student-only and students, and must not match unknown or open. Unknown filters match unverified/conflicting/missing categories. Support unknown attendance mode consistently in API and pure filter.",
+    "Update shared types and docs to this actual dataset contract. Keep existing valid API behavior and all query validation including impossible dates, duplicates and unknown parameter names. Add meaningful regression tests using an event with eligibility.value='student-only', status='verified', plus unknown/conflicting events and API requests for all supported categories. Update outdated acceptance assertions that incorrectly reject now-supported categories, without removing their invalid-input coverage.",
+    "UI offers canonical student-only, open and unknown eligibility categories, with a clear note that a category does not determine an individual's eligibility; official restrictions still apply. Wire filters through the API. Preserve persisted run-scoped shortlist and citations.",
+    "Clearly label any event whose verified submission deadline is before the dataset retrieval date as a historical or closed example on both card and detail view. Do not present it as still open. Use dataset.createdAt as the reproducible reference date, not a hardcoded date. The current dataset includes a past Amazon submission deadline; keep the record with this honest label.",
+    "Preserve field-specific source links, retrieval timestamps, and explicit not-verified displays. Add tests for historical/closed labeling and current events, and for unchanged dataset API equality.",
+    "All existing and new tests and typecheck pass. No dependencies or package manifests change. Keep fixes bounded to these defects.",
+    "Render canonical field status conflicting as conflicting source statements, not merely missing/unknown; preserve links to all competing findings."
+  ],
+  "verify": [
+    "npm run typecheck",
+    "npm test"
+  ],
+  "prompt": "This is a post-integration correctness task. The initial architecture used a students filter code but the validated research contract uses student-only, so the original exact matcher misclassifies real student-only data. Correct the comparison and API/UI contract while preserving students as an alias. Unknown filters must also work through the API. Mark past deadlines as historical/closed examples, including the Amazon event in the supplied dataset. Read all current tests and docs before editing; preserve unrelated work, design and citations. You are not alone in the codebase. Do not use the network, change data/research.json, edit package.json/package-lock.json, or run git commands. Return concise verification results."
+}
