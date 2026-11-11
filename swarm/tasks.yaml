@@ -344,7 +344,7 @@ tasks:
     ws: C
     title: Sandbox runner and shared-disk client
     deps: []
-    owns: ["src/archil/sandbox.ts", "src/archil/disk.ts", "tests/archil/sandbox.test.ts"]
+    owns: ["src/archil/sandbox.ts", "src/archil/disk.ts", "tests/archil/sandbox.test.ts", "src/archil/bundle.ts", "tests/archil/bundle.test.ts"]
     prompt: |
       - src/archil/sandbox.ts: createArchilSandboxRunner(opts: { region: string; diskId: string; baseImage?: string;
         vcpuCount?: number; memSizeMiB?: number; env: Record<string, string>; sdk?: ArchilSdkLike }): SandboxRunner.
