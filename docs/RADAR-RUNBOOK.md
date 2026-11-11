@@ -90,3 +90,13 @@ Complete and verify the judges' run even if the three-minute talk ends first. It
 **2:20–3:00 — delivered app.** Reopen the citation, reload the saved shortlist, and finish on the app with its delivery evidence. State the fresh run's actual status. Recovery is optional and should not displace this core story.
 
 Time one complete practice aloud. Record actual duration, failures/repairs, verified criteria, and unchecked criteria in the evidence index. “Implemented,” “rehearsed successfully,” and “demonstrated to judges” are separate claims.
+
+## Post-delivery corrections
+
+A verified correction can remain in the same run without replacing its research or erasing its first delivery:
+
+```bash
+node --import tsx scripts/radar-followup.ts --run RUN_ID --task TRUSTED_TASK.json --github-cli-auth
+```
+
+The runner requires a completed judges run and satisfied dependencies, preserves the prior app/report, publishes the new task, runs a real Archil/Codex worker, checks ownership and tests, merges its PR, and records final checks. It reuses the existing run's research explicitly. A failed matching followup permits one separate attempt with `--retry`; prior artifacts remain intact. The current example task is `fixtures/radar-followup.json` (eligibility-code alignment and closed-event labeling). Future fresh runs include those acceptance criteria in `fixtures/plan.radar.json`.

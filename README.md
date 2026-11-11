@@ -7,7 +7,7 @@
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-10b981?style=flat"></a>
   <img alt="Node 22.19+" src="https://img.shields.io/badge/node-%E2%89%A522.19-22d3ee?style=flat&logo=nodedotjs&logoColor=white">
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-ESM-8b5cf6?style=flat&logo=typescript&logoColor=white">
-  <img alt="260 tests" src="https://img.shields.io/badge/tests-260%20passing-10b981?style=flat&logo=vitest&logoColor=white">
+  <img alt="303 tests" src="https://img.shields.io/badge/tests-303%20passing-10b981?style=flat&logo=vitest&logoColor=white">
 </p>
 
 <p>

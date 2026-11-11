@@ -146,15 +146,28 @@ try {
   check('shortlist isolated by run ID', isolation.current.includes(selected) && isolation.other.length === 0, isolation);
   await evaluate(`(document.querySelector('.detail-button') || Array.from(document.querySelectorAll('.card button')).find(e=>/view details/i.test(e.textContent))).click()`);
   await waitFor(`document.getElementById('detail').open || (!document.getElementById('detail').hidden && document.querySelector('#detail h2'))`);
-  const links = await evaluate(`(async()=>{const d=await fetch('/api/dataset').then(r=>r.json());return Array.from(document.querySelectorAll('#detail a.citation, #detail .citation a')).map(a=>{const text=a.closest('.citation').textContent;const f=d.findings.find(f=>text.includes(f.id));return {href:a.href,findingId:a.dataset.findingId || f?.id,sourceId:a.dataset.sourceId || f?.sourceId,title:a.title+' '+text,target:a.target};});})()`);
+  const collectLinks = () => evaluate(`(async()=>{const d=await fetch('/api/dataset').then(r=>r.json());return Array.from(document.querySelectorAll('#detail a.citation, #detail .citation a')).map(a=>{const text=a.closest('.citation').textContent;const f=d.findings.find(f=>text.includes(f.id));return {href:a.href,findingId:a.dataset.findingId || f?.id,sourceId:a.dataset.sourceId || f?.sourceId,title:a.title+' '+text,target:a.target};});})()`);
+  const links = await collectLinks();
   check('details have cited claims', links.length > 0, { count: links.length });
   const mapped = links.every(link => {
     const finding = dataset.findings.find(f => f.id === link.findingId);
     const source = dataset.sources.find(s => s.id === link.sourceId);
-    return finding && source && finding.sourceId === source.id && link.href === new URL(source.url).href && link.title.includes(source.retrievedAt) && link.target === '_blank';
+    return finding && finding.eventId===selected && source && finding.sourceId === source.id && link.href === new URL(source.url).href && link.title.includes(source.retrievedAt) && link.target === '_blank';
   });
   check('clickable citations map to findings and intended sources', mapped, links);
   await screenshot('03-details-citations.png');
+  const closeDetails=()=>evaluate(`(() => {const p=document.getElementById('detail');(p.querySelector('.close') || Array.from(p.querySelectorAll('button')).find(e=>/^close/i.test(e.textContent)))?.click();})()`);
+  const openDetails=async event=>{
+    await evaluate(`(() => {const id=${JSON.stringify(event.id)};const card=Array.from(document.querySelectorAll('.card')).find(c=>c.dataset.eventId===id||c.querySelector('[data-save-id]')?.dataset.saveId===id);(card.querySelector('.detail-button')||Array.from(card.querySelectorAll('button')).find(b=>/view details/i.test(b.textContent))).click();})()`);
+    await waitFor(`!document.getElementById('detail').hidden && document.getElementById('detail').textContent.includes(${JSON.stringify(event.name)})`);
+  };
+  for(const event of dataset.events.filter(event=>event.id!==selected)){
+    await closeDetails();await openDetails(event);const eventLinks=await collectLinks();
+    check('all event citations mapped: '+event.id,eventLinks.length>0&&eventLinks.every(link=>{const f=dataset.findings.find(f=>f.id===link.findingId);const source=dataset.sources.find(s=>s.id===link.sourceId);return f?.eventId===event.id&&source&&f.sourceId===source.id&&link.href===new URL(source.url).href&&link.title.includes(source.retrievedAt);}),{eventId:event.id,count:eventLinks.length});
+    if(closed.some(item=>item.id===event.id))check('closed detail labelled: '+event.id,/historical|closed|past deadline/i.test(await evaluate(`document.getElementById('detail').textContent`)),{eventId:event.id});
+  }
+  await closeDetails();await openDetails(dataset.events.find(event=>event.id===selected));
+
   await evaluate(`(() => {const evidence=document.getElementById('evidence');if(evidence.tagName==='BUTTON'){document.querySelector('#detail .close').click();evidence.click();}else{Array.from(document.querySelectorAll('#detail button')).find(e=>/source evidence/i.test(e.textContent)).click();}})()`);
   await waitFor(`document.querySelectorAll('.source-item, #evidence .evidence-item').length > 0`);
   const evidenceCounts=await evaluate(`({global:document.querySelectorAll('.source-item').length,findings:document.querySelectorAll('#evidence .evidence-item').length})`);

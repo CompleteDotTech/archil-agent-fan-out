@@ -2,6 +2,12 @@
 
 The implementation distinguishes three research jobs from the older planner research. Discovery uses Keenable search; requirements and comparison use fetched official pages and bounded structured extraction. Claims without a matching source quotation remain unknown. The coding plan is a labeled Radar fixture; research supplies product data, while the brief supplies the feature design.
 
+## Final delivered state
+
+Judges run `radar-judges-2026-11-11T05-25-17-039Z-61894933` completed, including five real sourced events (one clearly closed/historical), a verified corrective PR, and working filters/citations/shortlist. Typecheck, 303 repository tests, 28 target tests, 61 evidence checks and 22 browser checks passed. All seven run sandboxes are stopped. [Open app](http://localhost:3106/) · [Detailed local evidence index](../.swarm/radar/radar-judges-2026-11-11T05-25-17-039Z-61894933/evidence-index.md) · [Three-minute checked replay](../.swarm/radar/radar-judges-2026-11-11T05-25-17-039Z-61894933/browser-final/judges-walkthrough.mp4).
+
+The last rehearsal was stopped at the user's request. No successful pre-judges rehearsal or independently observed live audience presentation is claimed.
+
 ## Preserved attempts
 
 | Run | Mode and result | Evidence |
@@ -21,4 +27,4 @@ Representative official pages were separately opened during preparation: [PayPal
 
 ## Judges
 
-The user explicitly requested stopping and clearing active rehearsal workers to start the judges run. Rehearsal `radar-rehearsal-2026-11-11T05-18-18-601Z-a84065ac` was stopped and preserved. Judges run `radar-judges-2026-11-11T05-25-17-039Z-61894933` started from a separate clean repo with fresh research. It is not completed yet. The original successful-rehearsal criterion remains unmet; no stopped run or fixture is relabeled as successful. See [the runbook](RADAR-RUNBOOK.md).
+The user explicitly requested stopping and clearing active rehearsal workers to start the judges run. Rehearsal `radar-rehearsal-2026-11-11T05-18-18-601Z-a84065ac` was stopped and preserved. Judges run `radar-judges-2026-11-11T05-25-17-039Z-61894933` started from a separate clean repo with fresh research. It completed after a verified corrective PR; see the final state above. The original successful-rehearsal criterion remains unmet; no stopped run or fixture is relabeled as successful. See [the runbook](RADAR-RUNBOOK.md).
